@@ -9,7 +9,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # 安装依赖
-RUN npm ci --only=production && npm cache clean --force
+RUN npm install && npm cache clean --force
 
 # 复制源代码
 COPY . .
