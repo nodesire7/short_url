@@ -27,9 +27,9 @@ docker-compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
 ```
 
 ### 6. 访问应用
-- 前端界面: http://localhost:3001
-- 后端API: http://localhost:3000
-- API文档: http://localhost:3000/docs
+- 前端界面: http://localhost:8848
+- 后端API: http://localhost:9848
+- API文档: http://localhost:9848/docs
 
 ## 🔑 默认账户
 

@@ -51,8 +51,8 @@ services:
       DATABASE_URL: postgresql://shorturl:shorturl_secure_2024@postgres:5432/shorturl
       REDIS_URL: redis://:redis_secure_2024@redis:6379
       JWT_SECRET: shorturl_jwt_secret_2024_secure_key
-      CORS_ORIGIN: http://localhost:3001
-      DEFAULT_DOMAIN: localhost:3000
+      CORS_ORIGIN: http://localhost:8848
+      DEFAULT_DOMAIN: localhost:9848
       RATE_LIMIT_MAX: 100
       RATE_LIMIT_WINDOW: 900000
     depends_on:
@@ -61,7 +61,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "3000:3000"
+      - "9848:3000"
     networks:
       - shorturl-network
     healthcheck:
@@ -79,7 +79,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "3001:80"
+      - "8848:80"
     networks:
       - shorturl-network
 

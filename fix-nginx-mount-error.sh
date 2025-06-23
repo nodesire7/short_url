@@ -33,7 +33,7 @@ docker-compose -f docker-compose.prod.yml ps
 
 echo ""
 echo "📋 检查后端健康状态..."
-if curl -f http://localhost:3000/health 2>/dev/null; then
+if curl -f http://localhost:9848/health 2>/dev/null; then
     echo "✅ 后端服务正常运行"
 else
     echo "⚠️  后端服务可能还在启动中"
@@ -43,7 +43,7 @@ fi
 
 echo ""
 echo "📋 检查前端状态..."
-if curl -f http://localhost:3001 2>/dev/null; then
+if curl -f http://localhost:8848 2>/dev/null; then
     echo "✅ 前端服务正常运行"
 else
     echo "⚠️  前端服务可能还在启动中"
@@ -62,9 +62,9 @@ echo ""
 echo "🎉 修复完成！"
 echo ""
 echo "📋 访问信息:"
-echo "   🌐 前端界面: http://localhost:3001"
-echo "   🔧 后端API: http://localhost:3000"
-echo "   📚 API文档: http://localhost:3000/docs"
+echo "   🌐 前端界面: http://localhost:8848"
+echo "   🔧 后端API: http://localhost:9848"
+echo "   📚 API文档: http://localhost:9848/docs"
 echo ""
 echo "🔑 默认账户:"
 echo "   👤 管理员: admin@shortlink.com / admin123456"

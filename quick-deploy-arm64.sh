@@ -101,12 +101,12 @@ services:
       DATABASE_URL: postgresql://shorturl:shorturl_secure_2024@postgres:5432/shorturl
       REDIS_URL: redis://:redis_secure_2024@redis:6379
       JWT_SECRET: shorturl_jwt_secret_2024_secure_key
-      CORS_ORIGIN: http://localhost:3001
-      DEFAULT_DOMAIN: localhost:3000
+      CORS_ORIGIN: http://localhost:8848
+      DEFAULT_DOMAIN: localhost:9848
       RATE_LIMIT_MAX: 100
       RATE_LIMIT_WINDOW: 900000
     ports:
-      - "3000:3000"
+      - "9848:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,7 +126,7 @@ services:
     container_name: shorturl-frontend
     restart: unless-stopped
     ports:
-      - "3001:80"
+      - "8848:80"
     depends_on:
       - backend
     healthcheck:
@@ -159,9 +159,9 @@ echo ""
 echo "🎉 部署完成！"
 echo ""
 echo "📋 访问信息:"
-echo "   🌐 前端界面: http://localhost:3001"
-echo "   🔧 后端API: http://localhost:3000"
-echo "   📚 API文档: http://localhost:3000/docs"
+echo "   🌐 前端界面: http://localhost:8848"
+echo "   🔧 后端API: http://localhost:9848"
+echo "   📚 API文档: http://localhost:9848/docs"
 echo ""
 echo "🔑 默认账户:"
 echo "   👤 管理员: admin@shortlink.com / admin123456"

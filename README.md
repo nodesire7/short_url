@@ -121,9 +121,9 @@ docker-compose exec backend npm run db:seed
 
 | 服务 | 地址 | 说明 |
 |------|------|------|
-| 前端界面 | http://localhost:3001 | React 管理界面 |
-| 后端API | http://localhost:3000 | Fastify API 服务 |
-| API文档 | http://localhost:3000/docs | Swagger 文档 |
+| 前端界面 | http://localhost:8848 | React 管理界面 |
+| 后端API | http://localhost:9848 | Fastify API 服务 |
+| API文档 | http://localhost:9848/docs | Swagger 文档 |
 | 数据库 | localhost:5432 | PostgreSQL |
 | Redis | localhost:6379 | Redis 缓存 |
 
@@ -214,7 +214,7 @@ JWT_SECRET=your_super_secret_jwt_key
 JWT_EXPIRES_IN=7d
 
 # 短链接
-DEFAULT_DOMAIN=localhost:3000
+DEFAULT_DOMAIN=localhost:9848
 SHORT_CODE_LENGTH=6
 
 # 功能开关
@@ -224,7 +224,7 @@ ENABLE_ANALYTICS=true
 #### 前端配置 (frontend/.env)
 ```env
 # API 配置
-VITE_API_URL=http://localhost:3000/api/v1
+VITE_API_URL=http://localhost:9848/api/v1
 
 # 应用配置
 VITE_APP_NAME=Modern ShortLink
@@ -257,7 +257,7 @@ VITE_APP_DESCRIPTION=现代化短链接系统
 - `GET /:shortCode` - 短链接重定向
 - `GET /:shortCode/preview` - 短链接预览
 
-详细的 API 文档可在 http://localhost:3000/docs 查看。
+详细的 API 文档可在 http://localhost:9848/docs 查看。
 
 ## 🚀 部署指南
 
