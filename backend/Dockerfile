@@ -50,7 +50,7 @@ EXPOSE 3000
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-  CMD curl -f http://localhost:3000/api/v1/health || exit 1
+  CMD curl -f http://localhost:3000/health || exit 1
 
 # 启动命令
 CMD ["node", "dist/index.js"]
