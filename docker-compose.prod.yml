@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: shorturl
       POSTGRES_USER: shorturl
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-shorturl_password_2024}
+      POSTGRES_PASSWORD: shorturl_secure_2024
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -27,7 +27,7 @@ services:
     image: redis:7-alpine
     container_name: shorturl-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password_2024}
+    command: redis-server --appendonly yes --requirepass redis_secure_2024
     volumes:
       - redis_data:/data
     ports:
@@ -35,26 +35,26 @@ services:
     networks:
       - shorturl-network
     healthcheck:
-      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-redis_password_2024}", "ping"]
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "redis_secure_2024", "ping"]
       interval: 10s
       timeout: 3s
       retries: 5
 
   # 后端 API 服务
   backend:
-    image: ${DOCKER_USERNAME:-nodesire77}/shorturl-backend:latest
+    image: nodesire77/shorturl-backend:latest
     container_name: shorturl-backend
     restart: unless-stopped
     environment:
       NODE_ENV: production
       PORT: 3000
-      DATABASE_URL: postgresql://shorturl:${POSTGRES_PASSWORD:-shorturl_password_2024}@postgres:5432/shorturl
-      REDIS_URL: redis://:${REDIS_PASSWORD:-redis_password_2024}@redis:6379
-      JWT_SECRET: ${JWT_SECRET:-your_super_secret_jwt_key_2024_change_this_in_production}
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3001}
-      DEFAULT_DOMAIN: ${DEFAULT_DOMAIN:-localhost:3000}
-      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
-      RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-900000}
+      DATABASE_URL: postgresql://shorturl:shorturl_secure_2024@postgres:5432/shorturl
+      REDIS_URL: redis://:redis_secure_2024@redis:6379
+      JWT_SECRET: shorturl_jwt_secret_2024_secure_key
+      CORS_ORIGIN: http://localhost:3001
+      DEFAULT_DOMAIN: localhost:3000
+      RATE_LIMIT_MAX: 100
+      RATE_LIMIT_WINDOW: 900000
     depends_on:
       postgres:
         condition: service_healthy
@@ -74,7 +74,7 @@ services:
 
   # 前端界面
   frontend:
-    image: ${DOCKER_USERNAME:-nodesire77}/shorturl-frontend:latest
+    image: nodesire77/shorturl-frontend:latest
     container_name: shorturl-frontend
     restart: unless-stopped
     depends_on:

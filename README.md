@@ -33,22 +33,26 @@
 
 ## 🚀 快速开始
 
-### 方式一：使用 DockerHub 镜像（推荐）
+### 方式一：一键部署（推荐）
+
+```bash
+# 下载并运行一键部署脚本
+curl -s https://raw.githubusercontent.com/nodesire7/short_url/main/quick-deploy.sh | bash
+```
+
+就这么简单！无需任何配置，开箱即用！
+
+### 方式二：手动部署
 
 ```bash
 # 下载配置文件
 curl -O https://raw.githubusercontent.com/nodesire7/short_url/main/docker-compose.prod.yml
 
-# 设置环境变量
-export DOCKER_USERNAME=your_dockerhub_username
-export JWT_SECRET=your_super_secret_jwt_key
-export POSTGRES_PASSWORD=your_secure_postgres_password
-export REDIS_PASSWORD=your_secure_redis_password
-
-# 启动服务
+# 启动服务（无需设置任何环境变量）
 docker-compose -f docker-compose.prod.yml up -d
 
-# 运行数据库迁移
+# 等待30秒后初始化数据库
+sleep 30
 docker-compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
 ```
 

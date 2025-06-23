@@ -6,34 +6,23 @@
 - Docker
 - Docker Compose
 
-## ⚡ 5分钟快速部署
+## ⚡ 1分钟快速部署
 
-### 1. 下载配置文件
+### 一键部署（推荐）
 ```bash
+curl -s https://raw.githubusercontent.com/nodesire7/short_url/main/quick-deploy.sh | bash
+```
+
+### 手动部署
+```bash
+# 1. 下载配置文件
 curl -O https://raw.githubusercontent.com/nodesire7/short_url/main/docker-compose.prod.yml
-```
 
-### 2. 设置环境变量
-```bash
-export DOCKER_USERNAME=your_dockerhub_username
-export JWT_SECRET=your_super_secret_jwt_key_$(date +%s)
-export POSTGRES_PASSWORD=postgres_$(openssl rand -hex 8)
-export REDIS_PASSWORD=redis_$(openssl rand -hex 8)
-```
-
-### 3. 启动服务
-```bash
+# 2. 启动服务（无需任何配置）
 docker-compose -f docker-compose.prod.yml up -d
-```
 
-### 4. 等待服务启动
-```bash
-# 等待约30秒让服务完全启动
+# 3. 等待服务启动并初始化数据库
 sleep 30
-```
-
-### 5. 运行数据库迁移
-```bash
 docker-compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
 ```
 
@@ -72,10 +61,11 @@ docker-compose -f docker-compose.prod.yml up -d
 ## 🔧 自定义配置
 
 ### 修改域名
-编辑环境变量：
+编辑 docker-compose.prod.yml 文件中的环境变量：
 ```bash
-export DEFAULT_DOMAIN=your-domain.com
-export CORS_ORIGIN=https://your-domain.com
+# 修改后端配置中的域名设置
+DEFAULT_DOMAIN: your-domain.com
+CORS_ORIGIN: https://your-domain.com
 ```
 
 ### 配置 SSL
