@@ -41,67 +41,86 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">欢迎回来</h2>
-        <p className="mt-2 text-sm text-gray-600">
-          请登录您的账户以继续使用
-        </p>
+    <div className="space-y-8 animate-fade-in">
+      {/* 头部区域 */}
+      <div className="text-center space-y-4">
+        <div className="mx-auto w-16 h-16 bg-gradient-to-br from-primary-500 to-accent-500 rounded-2xl flex items-center justify-center shadow-large">
+          <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold gradient-text">Modern ShortLink</h1>
+          <h2 className="text-xl font-semibold text-gray-900 mt-2">欢迎回来</h2>
+          <p className="mt-2 text-gray-600">
+            请登录您的账户以继续使用现代化短链接管理系统
+          </p>
+        </div>
       </div>
 
-      <form className="space-y-6" onSubmit={handleSubmit(onSubmit)}>
+      <form className="space-y-6 animate-slide-up animation-delay-200" onSubmit={handleSubmit(onSubmit)}>
         {/* 邮箱输入 */}
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+        <div className="space-y-2">
+          <label htmlFor="email" className="block text-sm font-semibold text-gray-700">
             邮箱地址
           </label>
-          <div className="mt-1 relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Mail className="h-5 w-5 text-gray-400" />
+          <div className="relative group">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <Mail className="h-5 w-5 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
             </div>
             <input
               {...register('email')}
               type="email"
               autoComplete="email"
-              className={`input pl-10 ${errors.email ? 'input-error' : ''}`}
-              placeholder="请输入邮箱地址"
+              className={`input pl-12 h-12 text-base ${errors.email ? 'input-error' : 'focus:ring-2 focus:ring-primary-500 focus:border-primary-500'} transition-all duration-200`}
+              placeholder="请输入您的邮箱地址"
             />
           </div>
           {errors.email && (
-            <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
+            <p className="mt-2 text-sm text-red-600 flex items-center">
+              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              {errors.email.message}
+            </p>
           )}
         </div>
 
         {/* 密码输入 */}
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+        <div className="space-y-2">
+          <label htmlFor="password" className="block text-sm font-semibold text-gray-700">
             密码
           </label>
-          <div className="mt-1 relative">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Lock className="h-5 w-5 text-gray-400" />
+          <div className="relative group">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <Lock className="h-5 w-5 text-gray-400 group-focus-within:text-primary-500 transition-colors" />
             </div>
             <input
               {...register('password')}
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
-              className={`input pl-10 pr-10 ${errors.password ? 'input-error' : ''}`}
-              placeholder="请输入密码"
+              className={`input pl-12 pr-12 h-12 text-base ${errors.password ? 'input-error' : 'focus:ring-2 focus:ring-primary-500 focus:border-primary-500'} transition-all duration-200`}
+              placeholder="请输入您的密码"
             />
             <button
               type="button"
-              className="absolute inset-y-0 right-0 pr-3 flex items-center"
+              className="absolute inset-y-0 right-0 pr-4 flex items-center hover:bg-gray-50 rounded-r-lg transition-colors"
               onClick={() => setShowPassword(!showPassword)}
             >
               {showPassword ? (
-                <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                <EyeOff className="h-5 w-5 text-gray-400 hover:text-primary-500 transition-colors" />
               ) : (
-                <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                <Eye className="h-5 w-5 text-gray-400 hover:text-primary-500 transition-colors" />
               )}
             </button>
           </div>
           {errors.password && (
-            <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
+            <p className="mt-2 text-sm text-red-600 flex items-center">
+              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              {errors.password.message}
+            </p>
           )}
         </div>
 
@@ -130,15 +149,20 @@ export default function LoginPage() {
         <button
           type="submit"
           disabled={isLoading}
-          className="btn-primary w-full flex justify-center"
+          className="w-full h-12 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold rounded-xl shadow-medium hover:shadow-large transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center space-x-2"
         >
           {isLoading ? (
             <>
               <LoadingSpinner size="sm" className="mr-2" />
-              登录中...
+              <span>登录中...</span>
             </>
           ) : (
-            '登录'
+            <>
+              <span>登录账户</span>
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+            </>
           )}
         </button>
 
@@ -157,11 +181,24 @@ export default function LoginPage() {
       </form>
 
       {/* 演示账户信息 */}
-      <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <h3 className="text-sm font-medium text-blue-900 mb-2">演示账户</h3>
-        <div className="text-xs text-blue-700 space-y-1">
-          <p>管理员: admin@shortlink.com / admin123456</p>
-          <p>普通用户: test@shortlink.com / test123456</p>
+      <div className="mt-8 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-100 shadow-soft hover-lift">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h3 className="text-base font-semibold text-blue-900">演示账户</h3>
+        </div>
+        <div className="space-y-3">
+          <div className="p-3 bg-white/60 rounded-lg border border-blue-100">
+            <p className="text-sm font-medium text-blue-900">管理员账户</p>
+            <p className="text-xs text-blue-700 mt-1">admin@shortlink.com / admin123456</p>
+          </div>
+          <div className="p-3 bg-white/60 rounded-lg border border-blue-100">
+            <p className="text-sm font-medium text-blue-900">普通用户</p>
+            <p className="text-xs text-blue-700 mt-1">test@shortlink.com / test123456</p>
+          </div>
         </div>
       </div>
     </div>

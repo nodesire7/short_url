@@ -27,29 +27,31 @@ function StatsCard({ title, value, icon: Icon, trend, color }: StatsCardProps) {
   const [, textColor, lightBg] = colorClasses[color].split(' ')
 
   return (
-    <div className="card">
+    <div className="card hover-lift group cursor-pointer">
       <div className="card-body">
         <div className="flex items-center">
           <div className="flex-shrink-0">
-            <div className={`p-3 rounded-lg ${lightBg}`}>
-              <Icon className={`h-6 w-6 ${textColor}`} />
+            <div className={`p-4 rounded-xl ${lightBg} group-hover:scale-110 transition-transform duration-200`}>
+              <Icon className={`h-7 w-7 ${textColor}`} />
             </div>
           </div>
-          <div className="ml-5 w-0 flex-1">
+          <div className="ml-6 w-0 flex-1">
             <dl>
-              <dt className="text-sm font-medium text-gray-500 truncate">{title}</dt>
-              <dd className="flex items-baseline">
-                <div className="text-2xl font-semibold text-gray-900">
+              <dt className="text-sm font-semibold text-gray-600 truncate uppercase tracking-wide">{title}</dt>
+              <dd className="flex items-baseline mt-2">
+                <div className="text-3xl font-bold text-gray-900">
                   {formatNumber(value)}
                 </div>
                 {trend && (
-                  <div className={`ml-2 flex items-baseline text-sm font-semibold ${
-                    trend.isPositive ? 'text-green-600' : 'text-red-600'
+                  <div className={`ml-3 flex items-center text-sm font-semibold px-2 py-1 rounded-full ${
+                    trend.isPositive
+                      ? 'text-green-700 bg-green-100'
+                      : 'text-red-700 bg-red-100'
                   }`}>
-                    <TrendingUp className={`self-center flex-shrink-0 h-4 w-4 ${
-                      trend.isPositive ? 'text-green-500' : 'text-red-500 transform rotate-180'
+                    <TrendingUp className={`self-center flex-shrink-0 h-4 w-4 mr-1 ${
+                      trend.isPositive ? 'text-green-600' : 'text-red-600 transform rotate-180'
                     }`} />
-                    <span className="ml-1">
+                    <span>
                       {trend.value}%
                     </span>
                   </div>
@@ -91,13 +93,20 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in">
       {/* 页面标题 */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">仪表板</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          欢迎回来，查看您的短链接统计数据
-        </p>
+      <div className="bg-gradient-to-r from-primary-50 to-accent-50 rounded-2xl p-8 border border-primary-100">
+        <div className="flex items-center space-x-4">
+          <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-accent-500 rounded-xl flex items-center justify-center shadow-medium">
+            <BarChart3 className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold gradient-text">仪表板</h1>
+            <p className="mt-2 text-gray-600">
+              欢迎回来！查看您的短链接统计数据和最新动态
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* 统计卡片 */}
