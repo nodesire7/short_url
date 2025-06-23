@@ -84,22 +84,22 @@ services:
     networks:
       - shorturl-network
 
-  # Nginx 反向代理
-  nginx:
-    image: nginx:alpine
-    container_name: shorturl-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
-      - ./nginx/ssl:/etc/nginx/ssl
-    depends_on:
-      - backend
-      - frontend
-    networks:
-      - shorturl-network
+  # Nginx 反向代理（可选，如果需要自定义域名和SSL）
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: shorturl-nginx
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./nginx/ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - backend
+  #     - frontend
+  #   networks:
+  #     - shorturl-network
 
 # 网络配置
 networks:
