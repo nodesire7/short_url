@@ -70,14 +70,12 @@ services:
       timeout: 10s
       retries: 3
 
-  # 前端界面
+  # 前端界面（独立运行，直接调用后端API）
   frontend:
     image: nodesire77/shorturl-frontend:latest
     container_name: shorturl-frontend
     restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
+    # 移除对后端的依赖，前端可以独立启动
     ports:
       - "8848:80"
     networks:

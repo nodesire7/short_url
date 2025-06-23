@@ -125,9 +125,7 @@ services:
       dockerfile: Dockerfile
     container_name: shorturl-frontend
     restart: unless-stopped
-    depends_on:
-      backend:
-        condition: service_healthy
+    # 前端独立运行，直接调用后端API
     ports:
       - "8848:80"
     networks:
