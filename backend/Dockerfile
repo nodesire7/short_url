@@ -9,8 +9,8 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma/
 
-# 安装依赖
-RUN npm install --only=production && npm cache clean --force
+# 安装所有依赖（包括开发依赖用于构建）
+RUN npm install && npm cache clean --force
 
 # 生成 Prisma 客户端
 RUN npx prisma generate

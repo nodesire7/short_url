@@ -24,7 +24,7 @@ const colorClasses = {
 }
 
 function StatsCard({ title, value, icon: Icon, trend, color }: StatsCardProps) {
-  const [bgColor, textColor, lightBg] = colorClasses[color].split(' ')
+  const [, textColor, lightBg] = colorClasses[color].split(' ')
 
   return (
     <div className="card">
