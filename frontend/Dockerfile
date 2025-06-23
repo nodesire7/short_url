@@ -44,9 +44,12 @@ USER shortlink
 # 暴露端口
 EXPOSE 80
 
+# 安装 curl 用于健康检查
+RUN apk add --no-cache curl
+
 # 健康检查
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost/ || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost/ || exit 1
 
 # 启动命令
 CMD ["nginx", "-g", "daemon off;"]
