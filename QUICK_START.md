@@ -10,7 +10,7 @@
 
 ### 1. 下载配置文件
 ```bash
-curl -O https://raw.githubusercontent.com/YOUR_USERNAME/short_url/main/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/nodesire7/short_url/main/docker-compose.prod.yml
 ```
 
 ### 2. 设置环境变量
@@ -124,7 +124,7 @@ docker-compose -f docker-compose.prod.yml exec nginx nginx -t
 
 - 📚 完整文档: [README.md](README.md)
 - 🚀 部署指南: [DEPLOYMENT.md](DEPLOYMENT.md)
-- 🐛 问题反馈: [GitHub Issues](https://github.com/YOUR_USERNAME/short_url/issues)
+- 🐛 问题反馈: [GitHub Issues](https://github.com/nodesire7/short_url/issues)
 
 ---
 

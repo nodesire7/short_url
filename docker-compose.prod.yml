@@ -42,7 +42,7 @@ services:
 
   # 后端 API 服务
   backend:
-    image: ${DOCKER_USERNAME:-your-username}/shorturl-backend:latest
+    image: ${DOCKER_USERNAME:-nodesire77}/shorturl-backend:latest
     container_name: shorturl-backend
     restart: unless-stopped
     environment:
@@ -74,7 +74,7 @@ services:
 
   # 前端界面
   frontend:
-    image: ${DOCKER_USERNAME:-your-username}/shorturl-frontend:latest
+    image: ${DOCKER_USERNAME:-nodesire77}/shorturl-frontend:latest
     container_name: shorturl-frontend
     restart: unless-stopped
     depends_on:

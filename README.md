@@ -37,7 +37,7 @@
 
 ```bash
 # 下载配置文件
-curl -O https://raw.githubusercontent.com/YOUR_USERNAME/short_url/main/docker-compose.prod.yml
+curl -O https://raw.githubusercontent.com/nodesire7/short_url/main/docker-compose.prod.yml
 
 # 设置环境变量
 export DOCKER_USERNAME=your_dockerhub_username
@@ -56,7 +56,7 @@ docker-compose -f docker-compose.prod.yml exec backend npx prisma migrate deploy
 
 ```bash
 # 克隆项目
-git clone https://github.com/YOUR_USERNAME/short_url.git
+git clone https://github.com/nodesire7/short_url.git
 cd short_url
 
 # 运行安装脚本
@@ -397,8 +397,8 @@ chmod +x scripts/publish.sh
 
 ### DockerHub 镜像
 
-- 后端镜像: `your-username/shorturl-backend:latest`
-- 前端镜像: `your-username/shorturl-frontend:latest`
+- 后端镜像: `nodesire77/shorturl-backend:latest`
+- 前端镜像: `nodesire77/shorturl-frontend:latest`
 
 ## 🤝 贡献指南
 
