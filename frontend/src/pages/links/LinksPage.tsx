@@ -1,8 +1,6 @@
-import { useState } from 'react'
 import { Helmet } from 'react-helmet-async'
 
 export default function LinksPage() {
-  const [links] = useState([])
 
   return (
     <>
