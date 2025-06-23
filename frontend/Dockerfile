@@ -23,6 +23,9 @@ FROM nginx:alpine AS production
 # 复制自定义 nginx 配置
 COPY nginx.conf /etc/nginx/nginx.conf
 
+# 安装 curl 用于健康检查（在切换用户之前）
+RUN apk add --no-cache curl
+
 # 复制构建产物
 COPY --from=builder /app/dist /usr/share/nginx/html
 
@@ -43,9 +46,6 @@ USER shortlink
 
 # 暴露端口
 EXPOSE 80
-
-# 安装 curl 用于健康检查
-RUN apk add --no-cache curl
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
