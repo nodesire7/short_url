@@ -1,0 +1,88 @@
+# Docker Compose配置文件 - Jump Jump短链接系统
+
+services:
+  db:
+    image: redis:7-alpine
+    container_name: jumpjump-redis
+    restart: unless-stopped
+    volumes:
+      # 持久化Redis数据到本地目录
+      - ./data/redis:/data
+      # 自定义Redis配置文件
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    networks:
+      - jumpjump-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  apiserver:
+    image: studiomj/jump-jump
+    container_name: jumpjump-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8848:8080"
+    entrypoint: ["./apiserver"]
+    environment:
+      - REDIS_DB=0
+      - REDIS_HOST=db:6379
+      - J2_API_ADDR=0.0.0.0:8080
+      - SECRET_KEY=gX9pP7jKwLhf2NzS6tYvC8mBqRxWvE5u
+      - GIN_MODE=release
+      - ALLOWED_HOSTS=localhost,127.0.0.1
+    networks:
+      - jumpjump-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    # 挂载日志目录（可选）
+    volumes:
+      - ./logs/api:/app/logs
+
+  landingserver:
+    image: studiomj/jump-jump
+    container_name: jumpjump-landing
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "9848:8081"
+    entrypoint: ["./landingserver"]
+    environment:
+      - REDIS_DB=0
+      - REDIS_HOST=db:6379
+      - J2_LANDING_ADDR=0.0.0.0:8081
+      - GIN_MODE=release
+    networks:
+      - jumpjump-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/", "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    # 挂载日志目录（可选）
+    volumes:
+      - ./logs/landing:/app/logs
+
+# 创建自定义网络
+networks:
+  jumpjump-network:
+    driver: bridge
+
+# 定义数据卷（可选，使用命名卷而不是绑定挂载）
+volumes:
+  redis-data:
+    driver: local
