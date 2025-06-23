@@ -26,17 +26,7 @@ interface ChangePasswordRequest {
   }
 }
 
-// 扩展 FastifyRequest 类型
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: {
-      id: string
-      email: string
-      username: string
-      role: string
-    }
-  }
-}
+
 
 export const authController = {
   // 用户注册
