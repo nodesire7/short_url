@@ -35,9 +35,16 @@
 
 ### 方式一：一键部署（推荐）
 
+#### x86_64 架构（Intel/AMD）
 ```bash
 # 下载并运行一键部署脚本
 curl -s https://raw.githubusercontent.com/nodesire7/short_url/main/quick-deploy.sh | bash
+```
+
+#### ARM64 架构（Apple Silicon/ARM服务器）
+```bash
+# ARM64专用部署脚本（从源码构建）
+curl -s https://raw.githubusercontent.com/nodesire7/short_url/main/quick-deploy-arm64.sh | bash
 ```
 
 就这么简单！无需任何配置，开箱即用！
