@@ -1,6 +1,6 @@
 {
   "name": "shortlink-backend",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "现代化短链接系统后端API",
   "main": "dist/index.js",
   "scripts": {
