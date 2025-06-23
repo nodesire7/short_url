@@ -1,9 +1,28 @@
 import axios from 'axios'
 import toast from 'react-hot-toast'
 
+// 动态获取API基础URL
+const getApiBaseUrl = () => {
+  // 如果有环境变量配置，优先使用
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  // 自动检测当前域名和协议
+  const { protocol, hostname, port } = window.location;
+
+  // 如果是生产域名，使用相同域名的API
+  if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+    return `${protocol}//${hostname}/api/v1`;
+  }
+
+  // 本地开发环境
+  return 'http://localhost:9848/api/v1';
+};
+
 // 创建 axios 实例
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:9848/api/v1',
+  baseURL: getApiBaseUrl(),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
