@@ -13,7 +13,7 @@ const envSchema = z.object({
   REDIS_URL: z.string(),
   
   // JWT 配置
-  JWT_SECRET: z.string().min(32),
+  JWT_SECRET: z.string().min(8),
   JWT_EXPIRES_IN: z.string().default('7d'),
   
   // CORS 配置
