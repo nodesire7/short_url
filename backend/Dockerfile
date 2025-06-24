@@ -1,56 +1,44 @@
-# 多阶段构建 Dockerfile for Node.js Backend
+# 使用Python 3.11官方镜像
+FROM python:3.11-slim
 
-# 构建阶段
-FROM node:18-alpine AS builder
-
+# 设置工作目录
 WORKDIR /app
 
-# 复制 package 文件
-COPY package*.json ./
-COPY prisma ./prisma/
+# 设置环境变量
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# 安装所有依赖（包括开发依赖用于构建）
-RUN npm install --legacy-peer-deps && npm cache clean --force
+# 安装系统依赖
+RUN apt-get update && apt-get install -y \
+    gcc \
+    default-libmysqlclient-dev \
+    pkg-config \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# 生成 Prisma 客户端
-RUN npx prisma generate
+# 复制requirements文件
+COPY requirements.txt .
 
-# 复制源代码
+# 安装Python依赖
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 复制应用代码
 COPY . .
 
-# 构建应用
-RUN npm run build
+# 创建必要的目录
+RUN mkdir -p logs uploads static
 
-# 生产阶段
-FROM node:18-alpine AS production
-
-# 安装 curl 用于健康检查
-RUN apk add --no-cache curl
-
-WORKDIR /app
-
-# 创建非 root 用户
-RUN addgroup -g 1001 -S nodejs
-RUN adduser -S shortlink -u 1001
-
-# 复制构建产物和依赖
-COPY --from=builder --chown=shortlink:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=shortlink:nodejs /app/dist ./dist
-COPY --from=builder --chown=shortlink:nodejs /app/prisma ./prisma
-COPY --from=builder --chown=shortlink:nodejs /app/package*.json ./
-
-# 创建日志目录
-RUN mkdir -p /app/logs && chown -R shortlink:nodejs /app/logs
-
-# 切换到非 root 用户
-USER shortlink
+# 设置权限
+RUN chmod +x /app
 
 # 暴露端口
-EXPOSE 3000
+EXPOSE 9848
 
 # 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
-  CMD curl -f http://localhost:3000/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:9848/health || exit 1
 
 # 启动命令
-CMD ["node", "dist/index.js"]
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9848", "--workers", "4"]
