@@ -1,0 +1,102 @@
+version: '3.8'
+
+# 使用Docker Hub预构建镜像的配置
+# 使用方法: docker-compose -f docker-compose.hub.yml up -d
+
+services:
+  # MySQL数据库
+  mysql:
+    image: mysql:8.0
+    container_name: shortlink-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: shortlink123456
+      MYSQL_DATABASE: shortlink
+      MYSQL_USER: shortlink
+      MYSQL_PASSWORD: shortlink123456
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - shortlink-network
+
+  # Redis缓存
+  redis:
+    image: redis:7-alpine
+    container_name: shortlink-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - shortlink-network
+
+  # Python后端API (使用预构建镜像)
+  backend:
+    image: nodesire7/shortlink-backend:latest
+    container_name: shortlink-backend
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=mysql+pymysql://shortlink:shortlink123456@mysql:3306/shortlink
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=shortlink
+      - DB_USER=shortlink
+      - DB_PASSWORD=shortlink123456
+      - REDIS_URL=redis://redis:6379/0
+      - HOST=0.0.0.0
+      - PORT=9848
+      - DEBUG=False
+      - SECRET_KEY=your-production-secret-key-change-this
+      - DEFAULT_DOMAIN=localhost:8848
+      - CORS_ORIGINS=["http://localhost:8848", "http://0.0.0.0:8848"]
+    ports:
+      - "9848:9848"
+    volumes:
+      - backend_logs:/app/logs
+      - backend_uploads:/app/uploads
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - shortlink-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9848/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Node.js前端 (使用预构建镜像)
+  frontend:
+    image: nodesire7/shortlink-frontend:latest
+    container_name: shortlink-frontend
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=http://0.0.0.0:9848
+      - VITE_DEFAULT_DOMAIN=localhost:8848
+    ports:
+      - "8848:8848"
+    depends_on:
+      - backend
+    networks:
+      - shortlink-network
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_logs:
+    driver: local
+  backend_uploads:
+    driver: local
+
+networks:
+  shortlink-network:
+    driver: bridge

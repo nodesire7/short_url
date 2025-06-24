@@ -1,0 +1,223 @@
+name: Build and Push Docker Images
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      push_to_registry:
+        description: 'Push images to registry'
+        required: true
+        default: 'true'
+        type: boolean
+
+env:
+  REGISTRY: docker.io
+  BACKEND_IMAGE: nodesire7/shortlink-backend
+  FRONTEND_IMAGE: nodesire7/shortlink-frontend
+
+jobs:
+  build-backend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.BACKEND_IMAGE }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push backend image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        platforms: linux/amd64,linux/arm64
+        push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  build-frontend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.FRONTEND_IMAGE }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push frontend image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        platforms: linux/amd64,linux/arm64
+        push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+  update-compose:
+    needs: [build-backend, build-frontend]
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Update docker-compose with built images
+      run: |
+        # 创建使用预构建镜像的 docker-compose 文件
+        cat > docker-compose.hub.yml << EOF
+        version: '3.8'
+        
+        services:
+          mysql:
+            image: mysql:8.0
+            container_name: shortlink-mysql
+            restart: unless-stopped
+            environment:
+              MYSQL_ROOT_PASSWORD: shortlink123456
+              MYSQL_DATABASE: shortlink
+              MYSQL_USER: shortlink
+              MYSQL_PASSWORD: shortlink123456
+              TZ: Asia/Shanghai
+            ports:
+              - "3306:3306"
+            volumes:
+              - mysql_data:/var/lib/mysql
+              - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+            command: --default-authentication-plugin=mysql_native_password
+            networks:
+              - shortlink-network
+        
+          redis:
+            image: redis:7-alpine
+            container_name: shortlink-redis
+            restart: unless-stopped
+            ports:
+              - "6379:6379"
+            volumes:
+              - redis_data:/data
+            command: redis-server --appendonly yes
+            networks:
+              - shortlink-network
+        
+          backend:
+            image: ${{ env.BACKEND_IMAGE }}:latest
+            container_name: shortlink-backend
+            restart: unless-stopped
+            environment:
+              - DATABASE_URL=mysql+pymysql://shortlink:shortlink123456@mysql:3306/shortlink
+              - DB_HOST=mysql
+              - DB_PORT=3306
+              - DB_NAME=shortlink
+              - DB_USER=shortlink
+              - DB_PASSWORD=shortlink123456
+              - REDIS_URL=redis://redis:6379/0
+              - HOST=0.0.0.0
+              - PORT=9848
+              - DEBUG=False
+              - SECRET_KEY=your-production-secret-key-change-this
+              - DEFAULT_DOMAIN=localhost:8848
+              - CORS_ORIGINS=["http://localhost:8848", "http://0.0.0.0:8848"]
+            ports:
+              - "9848:9848"
+            volumes:
+              - ./backend/logs:/app/logs
+              - ./backend/uploads:/app/uploads
+            depends_on:
+              - mysql
+              - redis
+            networks:
+              - shortlink-network
+            healthcheck:
+              test: ["CMD", "curl", "-f", "http://localhost:9848/health"]
+              interval: 30s
+              timeout: 10s
+              retries: 3
+        
+          frontend:
+            image: ${{ env.FRONTEND_IMAGE }}:latest
+            container_name: shortlink-frontend
+            restart: unless-stopped
+            environment:
+              - VITE_API_URL=http://0.0.0.0:9848
+              - VITE_DEFAULT_DOMAIN=localhost:8848
+            ports:
+              - "8848:8848"
+            depends_on:
+              - backend
+            networks:
+              - shortlink-network
+        
+        volumes:
+          mysql_data:
+            driver: local
+          redis_data:
+            driver: local
+        
+        networks:
+          shortlink-network:
+            driver: bridge
+        EOF
+        
+    - name: Commit updated compose file
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add docker-compose.hub.yml
+        git diff --staged --quiet || git commit -m "ci: 更新 docker-compose.hub.yml 使用最新构建的镜像"
+        git push || echo "No changes to push"
