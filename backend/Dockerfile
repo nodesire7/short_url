@@ -16,10 +16,14 @@ RUN apt-get update && apt-get install -y \
     default-libmysqlclient-dev \
     pkg-config \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # 复制requirements文件
 COPY requirements.txt .
+
+# 设置pip镜像源（加速构建）
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 安装Python依赖
 RUN pip install --no-cache-dir -r requirements.txt

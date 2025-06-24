@@ -7,8 +7,8 @@
     "dev": "vite --host 0.0.0.0 --port 8848",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0 --port 8848",
-    "lint": "eslint . --ext js,jsx,ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "lint:fix": "eslint . --ext js,jsx,ts,tsx --fix"
+    "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext js,jsx --fix"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -29,17 +29,12 @@
     "qrcode.react": "^3.1.0"
   },
   "devDependencies": {
-    "@types/react": "^18.2.43",
-    "@types/react-dom": "^18.2.17",
     "@vitejs/plugin-react": "^4.2.1",
     "vite": "^5.0.8",
     "eslint": "^8.55.0",
     "eslint-plugin-react": "^7.33.2",
     "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-plugin-react-refresh": "^0.4.5",
-    "@typescript-eslint/eslint-plugin": "^6.14.0",
-    "@typescript-eslint/parser": "^6.14.0",
-    "typescript": "^5.2.2"
+    "eslint-plugin-react-refresh": "^0.4.5"
   },
   "engines": {
     "node": ">=16.0.0"
