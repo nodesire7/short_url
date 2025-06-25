@@ -119,9 +119,9 @@ class DatabaseManager:
         self._init_cache()
 
     def _init_mysql(self):
-        """初始化MySQL连接池"""
+        """初始化MySQL连接配置"""
         try:
-            config = {
+            self.config = {
                 'host': MYSQL_HOST,
                 'port': MYSQL_PORT,
                 'user': MYSQL_USER,
@@ -132,15 +132,11 @@ class DatabaseManager:
                 'autocommit': True
             }
 
-            # 创建连接池
-            from pymysql import pooling
-            self.pool = pooling.ConnectionPool(
-                size=10,
-                name='shortlink_pool',
-                **config
-            )
+            # 测试连接
+            test_conn = pymysql.connect(**self.config)
+            test_conn.close()
 
-            app.logger.info("MySQL connection pool initialized")
+            app.logger.info("MySQL connection initialized")
 
         except Exception as e:
             app.logger.error(f"MySQL initialization failed: {e}")
@@ -171,11 +167,11 @@ class DatabaseManager:
 
     def get_connection(self):
         """获取数据库连接"""
-        return self.pool.get_connection()
+        return pymysql.connect(**self.config)
 
     def return_connection(self, conn):
         """归还数据库连接"""
-        conn.close()  # MySQL连接池自动管理
+        conn.close()
 
     def execute_query(self, query, params=None, fetch=False):
         """执行数据库查询"""
