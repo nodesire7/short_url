@@ -1,19 +1,20 @@
-# 多阶段构建：包含MySQL、Redis和API的一体化容器
-FROM ubuntu:22.04
+# 多阶段构建：包含MySQL 5.7、Redis和API的一体化容器
+FROM ubuntu:18.04
 
 # 设置非交互模式
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
 
-# 安装系统依赖
+# 安装系统依赖和MySQL 5.7
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
-    mysql-server \
+    mysql-server-5.7 \
     redis-server \
     curl \
     supervisor \
     tzdata \
+    software-properties-common \
     && rm -rf /var/lib/apt/lists/*
 
 # 设置工作目录
@@ -30,10 +31,10 @@ COPY gunicorn.conf.py .
 # 创建必要目录
 RUN mkdir -p /app/data /app/logs /var/log/supervisor
 
-# 配置MySQL
+# 配置MySQL 5.7
 RUN service mysql start && \
     mysql -e "CREATE DATABASE IF NOT EXISTS shortlink;" && \
-    mysql -e "CREATE USER IF NOT EXISTS 'shortlink'@'localhost' IDENTIFIED BY 'shortlink123456';" && \
+    mysql -e "CREATE USER 'shortlink'@'localhost' IDENTIFIED BY 'shortlink123456';" && \
     mysql -e "GRANT ALL PRIVILEGES ON shortlink.* TO 'shortlink'@'localhost';" && \
     mysql -e "FLUSH PRIVILEGES;" && \
     service mysql stop

@@ -57,7 +57,7 @@ for i in {1..15}; do
     sleep 1
 done
 
-# 设置环境变量
+# 设置环境变量 - 强制使用MySQL
 export DB_TYPE=mysql
 export MYSQL_HOST=localhost
 export MYSQL_PORT=3306
@@ -66,6 +66,9 @@ export MYSQL_PASSWORD=shortlink123456
 export MYSQL_DATABASE=shortlink
 export REDIS_HOST=localhost
 export REDIS_PORT=6379
+
+# 确保不使用SQLite
+unset DATABASE_PATH
 
 # 启动API服务
 echo "🎉 Starting API service..."
