@@ -1,12 +1,20 @@
 # 多阶段构建：包含MySQL 5.7、Redis和API的一体化容器
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
 # 设置非交互模式
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
 
-# 安装系统依赖和MySQL 5.7
+# 添加MySQL 5.7仓库并安装系统依赖
 RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    lsb-release \
+    && wget https://dev.mysql.com/get/mysql-apt-config_0.8.22-1_all.deb \
+    && echo "mysql-apt-config mysql-apt-config/select-server select mysql-5.7" | debconf-set-selections \
+    && DEBIAN_FRONTEND=noninteractive dpkg -i mysql-apt-config_0.8.22-1_all.deb \
+    && apt-get update \
+    && apt-get install -y \
     python3 \
     python3-pip \
     mysql-server-5.7 \
@@ -14,8 +22,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     supervisor \
     tzdata \
-    software-properties-common \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && rm mysql-apt-config_0.8.22-1_all.deb
 
 # 设置工作目录
 WORKDIR /app
