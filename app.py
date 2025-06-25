@@ -15,6 +15,9 @@ import os
 import logging
 from logging.handlers import RotatingFileHandler
 import time
+from urllib.parse import quote, unquote
+import base64
+import io
 
 # 数据库支持
 import pymysql
@@ -278,6 +281,53 @@ def is_valid_url(url):
         r'(?:/?|[/?]\S+)$', re.IGNORECASE)
     return url_pattern.match(url) is not None
 
+def normalize_url(url):
+    """标准化URL，处理中文字符编码"""
+    try:
+        # 如果URL包含中文字符，进行编码
+        # 分离URL的各个部分
+        if '?' in url:
+            base_url, query = url.split('?', 1)
+        else:
+            base_url, query = url, ''
+
+        # 对路径部分进行编码，保留协议和域名
+        parts = base_url.split('/')
+        if len(parts) >= 3:
+            # 协议://域名/路径
+            protocol_domain = '/'.join(parts[:3])
+            path_parts = parts[3:]
+
+            # 对路径部分进行URL编码
+            encoded_path_parts = []
+            for part in path_parts:
+                if part:
+                    # 只对包含非ASCII字符的部分进行编码
+                    try:
+                        part.encode('ascii')
+                        encoded_path_parts.append(part)
+                    except UnicodeEncodeError:
+                        encoded_path_parts.append(quote(part, safe=''))
+                else:
+                    encoded_path_parts.append(part)
+
+            # 重新组装URL
+            if encoded_path_parts:
+                normalized_url = protocol_domain + '/' + '/'.join(encoded_path_parts)
+            else:
+                normalized_url = protocol_domain
+        else:
+            normalized_url = base_url
+
+        # 添加查询参数
+        if query:
+            normalized_url += '?' + query
+
+        return normalized_url
+    except Exception as e:
+        app.logger.warning(f'URL normalization failed for {url}: {e}')
+        return url
+
 # 请求日志中间件
 @app.before_request
 def log_request():
@@ -344,6 +394,9 @@ def create_short_link():
         if not original_url:
             return jsonify({"error": "URL is required"}), 400
         
+        # 标准化URL（处理中文字符）
+        original_url = normalize_url(original_url)
+
         if not is_valid_url(original_url):
             return jsonify({"error": "Invalid URL format"}), 400
         
@@ -550,6 +603,72 @@ def redirect_link(short_code):
     except Exception as e:
         app.logger.error(f'Error redirecting {short_code}: {str(e)}')
         return jsonify({"error": "Internal server error"}), 500
+
+@app.route('/api/clear', methods=['DELETE'])
+def clear_all_links():
+    """清空所有短链接"""
+    if not verify_auth():
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        db = get_db_manager()
+
+        # 获取删除前的统计
+        total_result = db.execute_query("SELECT COUNT(*) as count FROM links", fetch=True)
+        total_links = total_result[0]['count'] if total_result else 0
+
+        clicks_result = db.execute_query("SELECT COUNT(*) as count FROM clicks", fetch=True)
+        total_clicks = clicks_result[0]['count'] if clicks_result else 0
+
+        # 删除所有点击记录
+        db.execute_query("DELETE FROM clicks")
+
+        # 删除所有链接
+        db.execute_query("DELETE FROM links")
+
+        app.logger.info(f'Cleared all links: {total_links} links, {total_clicks} clicks')
+
+        return jsonify({
+            "success": True,
+            "message": "All links cleared successfully",
+            "deleted": {
+                "links": total_links,
+                "clicks": total_clicks
+            }
+        })
+
+    except Exception as e:
+        app.logger.error(f'Error clearing links: {str(e)}')
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
+@app.route('/api/qr/<short_code>')
+def generate_qr_code(short_code):
+    """生成短链接的二维码"""
+    try:
+        # 检查短链接是否存在
+        db = get_db_manager()
+        result = db.execute_query("SELECT 1 FROM links WHERE short_code = %s", (short_code,), fetch=True)
+
+        if not result:
+            return jsonify({"error": "Short link not found"}), 404
+
+        # 生成二维码URL
+        short_url = f"{BASE_URL}/{short_code}"
+
+        # 使用简单的二维码API服务
+        qr_api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={quote(short_url)}"
+
+        return jsonify({
+            "success": True,
+            "short_code": short_code,
+            "short_url": short_url,
+            "qr_code_url": qr_api_url,
+            "qr_code_data": short_url
+        })
+
+    except Exception as e:
+        app.logger.error(f'Error generating QR code for {short_code}: {str(e)}')
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 @app.route('/health')
 def health_check():

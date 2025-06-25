@@ -92,6 +92,17 @@ curl -X GET http://localhost:2282/api/stats \
   -H "Authorization: YOUR_API_TOKEN"
 ```
 
+### 生成二维码
+```bash
+curl -X GET http://localhost:2282/api/qr/abc123
+```
+
+### 清空所有链接
+```bash
+curl -X DELETE http://localhost:2282/api/clear \
+  -H "Authorization: YOUR_API_TOKEN"
+```
+
 ### 健康检查
 ```bash
 curl http://localhost:2282/health
