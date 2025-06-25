@@ -39,6 +39,7 @@ done
 # 创建数据库和用户（如果不存在）
 echo "🔧 Setting up database..."
 mysql -e "CREATE DATABASE IF NOT EXISTS shortlink;" 2>/dev/null || true
+mysql -e "CREATE USER IF NOT EXISTS 'shortlink'@'localhost' IDENTIFIED BY 'shortlink123456';" 2>/dev/null || true
 mysql -e "GRANT ALL PRIVILEGES ON shortlink.* TO 'shortlink'@'localhost';" 2>/dev/null || true
 mysql -e "FLUSH PRIVILEGES;" 2>/dev/null || true
 

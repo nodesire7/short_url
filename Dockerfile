@@ -5,25 +5,44 @@ FROM ubuntu:20.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
 
-# 添加MySQL 5.7仓库并安装系统依赖
+# 安装基础工具
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     lsb-release \
-    && wget https://dev.mysql.com/get/mysql-apt-config_0.8.22-1_all.deb \
+    software-properties-common \
+    debconf-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# 添加MySQL 5.7 APT仓库
+RUN wget -O /tmp/mysql-apt-config.deb https://dev.mysql.com/get/mysql-apt-config_0.8.22-1_all.deb \
     && echo "mysql-apt-config mysql-apt-config/select-server select mysql-5.7" | debconf-set-selections \
-    && DEBIAN_FRONTEND=noninteractive dpkg -i mysql-apt-config_0.8.22-1_all.deb \
-    && apt-get update \
-    && apt-get install -y \
+    && echo "mysql-apt-config mysql-apt-config/select-product select Ok" | debconf-set-selections \
+    && dpkg -i /tmp/mysql-apt-config.deb \
+    && rm /tmp/mysql-apt-config.deb
+
+# 更新包列表
+RUN apt-get update
+
+# 预配置MySQL安装
+RUN echo "mysql-server-5.7 mysql-server/root_password password " | debconf-set-selections \
+    && echo "mysql-server-5.7 mysql-server/root_password_again password " | debconf-set-selections
+
+# 安装MySQL 5.7
+RUN apt-get install -y \
+    mysql-server-5.7 \
+    mysql-client-5.7 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装其他系统依赖
+RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
-    mysql-server-5.7 \
     redis-server \
     curl \
     supervisor \
     tzdata \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm mysql-apt-config_0.8.22-1_all.deb
+    && rm -rf /var/lib/apt/lists/*
 
 # 设置工作目录
 WORKDIR /app
