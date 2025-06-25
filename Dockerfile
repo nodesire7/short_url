@@ -1,39 +1,20 @@
-# 一体化容器：包含MySQL 5.7、Redis和API
+# 一体化容器：包含MySQL 8.0兼容模式、Redis和API
 FROM ubuntu:22.04
 
 # 设置非交互模式
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
 
-# 安装基础工具
-RUN apt-get update && apt-get install -y \
-    wget \
-    gnupg \
-    lsb-release \
-    software-properties-common \
-    && rm -rf /var/lib/apt/lists/*
+# 预配置MySQL安装
+RUN echo "mysql-server mysql-server/root_password password " | debconf-set-selections \
+    && echo "mysql-server mysql-server/root_password_again password " | debconf-set-selections
 
-# 添加MySQL 5.7仓库
-RUN wget https://dev.mysql.com/get/mysql-apt-config_0.8.24-1_all.deb \
-    && echo "mysql-apt-config mysql-apt-config/select-server select mysql-5.7" | debconf-set-selections \
-    && echo "mysql-apt-config mysql-apt-config/select-product select Ok" | debconf-set-selections \
-    && dpkg -i mysql-apt-config_0.8.24-1_all.deb \
-    && rm mysql-apt-config_0.8.24-1_all.deb
-
-# 添加MySQL GPG密钥
-RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys B7B3B788A8D3785C
-
-# 更新包列表并安装MySQL 5.7
-RUN apt-get update && apt-get install -y \
-    mysql-server-5.7=5.7.* \
-    mysql-client-5.7=5.7.* \
-    && apt-mark hold mysql-server-5.7 mysql-client-5.7 \
-    && rm -rf /var/lib/apt/lists/*
-
-# 安装其他系统依赖
+# 安装系统依赖
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
+    mysql-server \
+    mysql-client \
     redis-server \
     curl \
     supervisor \
@@ -54,10 +35,11 @@ COPY gunicorn.conf.py .
 # 创建必要目录
 RUN mkdir -p /app/data /app/logs /var/log/supervisor
 
-# 配置MySQL 5.7
+# 配置MySQL 8.0兼容模式
 RUN service mysql start && \
+    mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '';" && \
     mysql -e "CREATE DATABASE IF NOT EXISTS shortlink;" && \
-    mysql -e "CREATE USER 'shortlink'@'localhost' IDENTIFIED BY 'shortlink123456';" && \
+    mysql -e "CREATE USER 'shortlink'@'localhost' IDENTIFIED WITH mysql_native_password BY 'shortlink123456';" && \
     mysql -e "GRANT ALL PRIVILEGES ON shortlink.* TO 'shortlink'@'localhost';" && \
     mysql -e "FLUSH PRIVILEGES;" && \
     service mysql stop
