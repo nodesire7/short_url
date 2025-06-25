@@ -9,12 +9,12 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# 创建应用用户
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# 创建应用用户（使用常见的UID/GID）
+RUN groupadd -g 1000 appuser && useradd -u 1000 -g appuser -m appuser
 
 # 创建必要目录并设置权限
 RUN mkdir -p /app/data /app/logs \
-    && chmod 755 /app/data /app/logs \
+    && chmod 777 /app/data /app/logs \
     && chown -R appuser:appuser /app
 
 # 复制依赖文件
@@ -26,6 +26,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制应用代码
 COPY app.py .
 COPY gunicorn.conf.py .
+COPY docker-entrypoint.sh .
+
+# 设置启动脚本权限
+RUN chmod +x docker-entrypoint.sh
 
 # 设置权限
 RUN chown -R appuser:appuser /app
@@ -41,4 +45,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 2282
 
 # 启动命令
-CMD ["gunicorn", "--config", "gunicorn.conf.py", "app:app"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD []

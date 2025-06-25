@@ -124,6 +124,31 @@ def get_db_pool():
     """获取数据库连接池，延迟初始化"""
     global db_pool
     if db_pool is None:
+        # 确保数据库目录存在
+        db_dir = os.path.dirname(DATABASE)
+        if db_dir and not os.path.exists(db_dir):
+            try:
+                os.makedirs(db_dir, mode=0o755, exist_ok=True)
+                app.logger.info(f"Created database directory: {db_dir}")
+            except PermissionError as e:
+                app.logger.error(f"Cannot create database directory {db_dir}: {e}")
+                # 尝试使用当前目录
+                global DATABASE
+                DATABASE = "shortlinks.db"
+                app.logger.warning(f"Using current directory for database: {DATABASE}")
+
+        # 测试数据库文件创建权限
+        try:
+            test_conn = sqlite3.connect(DATABASE)
+            test_conn.execute("SELECT 1")
+            test_conn.close()
+            app.logger.info(f"Database file accessible: {DATABASE}")
+        except sqlite3.OperationalError as e:
+            app.logger.error(f"Cannot access database file {DATABASE}: {e}")
+            # 最后的备选方案：使用内存数据库
+            DATABASE = ":memory:"
+            app.logger.warning("Using in-memory database as fallback")
+
         db_pool = DatabasePool(DATABASE)
     return db_pool
 

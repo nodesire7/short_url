@@ -1,0 +1,70 @@
+# 短链接API Docker Compose 示例配置
+# 复制此文件为 docker-compose.yml 并根据需要修改
+
+version: '3.8'
+
+services:
+  shortlink-api:
+    image: nodesire77/shorturl_api:latest
+    container_name: shortlink-api
+    restart: unless-stopped
+    
+    # 端口映射
+    ports:
+      - "2282:2282"
+    
+    # 环境变量配置
+    environment:
+      # 必需：API认证令牌（请修改为您自己的安全令牌）
+      - API_TOKEN=your-secure-api-token-here
+      
+      # 可选：基础URL
+      - BASE_URL=http://localhost:2282
+      
+      # 可选：短代码长度
+      - SHORT_CODE_LENGTH=6
+      
+      # 可选：日志级别
+      - LOG_LEVEL=INFO
+      
+      # 可选：数据库路径
+      - DATABASE_PATH=/app/data/shortlinks.db
+    
+    # 数据持久化 - 选择以下方式之一：
+    
+    # 方式1：使用bind mount（推荐，简单）
+    volumes:
+      - ./shortlink-data:/app/data
+      - ./shortlink-logs:/app/logs
+    
+    # 方式2：使用命名volume（取消注释下面的配置）
+    # volumes:
+    #   - shortlink-data:/app/data
+    #   - shortlink-logs:/app/logs
+    
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2282/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# 如果使用命名volume，取消注释以下配置
+# volumes:
+#   shortlink-data:
+#     driver: local
+#   shortlink-logs:
+#     driver: local
+
+# 1Panel用户配置示例
+# networks:
+#   1panel-network:
+#     external: true
