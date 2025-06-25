@@ -19,7 +19,12 @@ export API_TOKEN
 
 # 设置BASE_URL
 if [ -z "$BASE_URL" ]; then
-    BASE_URL="http://localhost:2282"
+    echo -e "${YELLOW}🌐 请输入您的域名 (例如: https://s.gbtgame.me):${NC}"
+    read -p "BASE_URL: " BASE_URL
+    if [ -z "$BASE_URL" ]; then
+        BASE_URL="http://localhost:2282"
+        echo -e "${YELLOW}⚠️  使用默认地址: $BASE_URL${NC}"
+    fi
     export BASE_URL
 fi
 
