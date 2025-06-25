@@ -122,33 +122,49 @@ db_pool = None
 
 def get_db_pool():
     """获取数据库连接池，延迟初始化"""
-    global db_pool
+    global db_pool, DATABASE
     if db_pool is None:
-        # 确保数据库目录存在
-        db_dir = os.path.dirname(DATABASE)
-        if db_dir and not os.path.exists(db_dir):
+        # 尝试多个数据库路径
+        db_paths = [
+            DATABASE,  # 原始路径
+            "/tmp/shortlinks.db",  # 临时目录
+            "./shortlinks.db",  # 当前目录
+            ":memory:"  # 内存数据库（最后备选）
+        ]
+
+        working_db_path = None
+
+        for db_path in db_paths:
             try:
-                os.makedirs(db_dir, mode=0o755, exist_ok=True)
-                app.logger.info(f"Created database directory: {db_dir}")
-            except PermissionError as e:
-                app.logger.error(f"Cannot create database directory {db_dir}: {e}")
-                # 尝试使用当前目录
-                global DATABASE
-                DATABASE = "shortlinks.db"
-                app.logger.warning(f"Using current directory for database: {DATABASE}")
+                if db_path == ":memory:":
+                    # 内存数据库总是可用
+                    working_db_path = db_path
+                    app.logger.warning("Using in-memory database as fallback")
+                    break
 
-        # 测试数据库文件创建权限
-        try:
-            test_conn = sqlite3.connect(DATABASE)
-            test_conn.execute("SELECT 1")
-            test_conn.close()
-            app.logger.info(f"Database file accessible: {DATABASE}")
-        except sqlite3.OperationalError as e:
-            app.logger.error(f"Cannot access database file {DATABASE}: {e}")
-            # 最后的备选方案：使用内存数据库
-            DATABASE = ":memory:"
-            app.logger.warning("Using in-memory database as fallback")
+                # 确保目录存在
+                db_dir = os.path.dirname(db_path)
+                if db_dir and not os.path.exists(db_dir):
+                    os.makedirs(db_dir, mode=0o755, exist_ok=True)
 
+                # 测试数据库文件创建权限
+                test_conn = sqlite3.connect(db_path)
+                test_conn.execute("SELECT 1")
+                test_conn.close()
+
+                working_db_path = db_path
+                app.logger.info(f"Database file accessible: {db_path}")
+                break
+
+            except (sqlite3.OperationalError, PermissionError, OSError) as e:
+                app.logger.warning(f"Cannot use database path {db_path}: {e}")
+                continue
+
+        if working_db_path is None:
+            working_db_path = ":memory:"
+            app.logger.error("All database paths failed, using in-memory database")
+
+        DATABASE = working_db_path
         db_pool = DatabasePool(DATABASE)
     return db_pool
 

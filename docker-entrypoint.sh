@@ -40,7 +40,18 @@ if [ -w "$DATA_DIR" ]; then
     echo -e "${GREEN}✅ Data directory is writable: $DATA_DIR${NC}"
 else
     echo -e "${YELLOW}⚠️  Data directory not writable, trying to fix permissions...${NC}"
-    chmod 777 "$DATA_DIR" 2>/dev/null || echo -e "${YELLOW}⚠️  Cannot change permissions, will try alternative paths${NC}"
+
+    # 尝试多种权限修复方法
+    sudo chown -R $(id -u):$(id -g) "$DATA_DIR" 2>/dev/null || true
+    sudo chmod 777 "$DATA_DIR" 2>/dev/null || true
+    chmod 777 "$DATA_DIR" 2>/dev/null || true
+
+    # 再次检查
+    if [ -w "$DATA_DIR" ]; then
+        echo -e "${GREEN}✅ Permissions fixed for: $DATA_DIR${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Cannot fix permissions, application will use alternative paths${NC}"
+    fi
 fi
 
 if [ -w "$LOGS_DIR" ]; then
@@ -88,14 +99,19 @@ echo -e "  Groups: $(groups)"
 echo -e "${BLUE}📂 Directory permissions:${NC}"
 ls -la /app/ | head -5
 
+# 修复权限
+echo -e "${BLUE}🔧 Fixing permissions...${NC}"
+chown -R appuser:appuser /app/data /app/logs 2>/dev/null || true
+chmod 755 /app/data /app/logs 2>/dev/null || true
+
 # 启动应用
 echo -e "${GREEN}🎉 Starting application...${NC}"
 
 # 根据参数决定启动方式
 if [ "$1" = "dev" ]; then
     echo -e "${YELLOW}🔧 Development mode${NC}"
-    exec python3 app.py
+    exec su-exec appuser python3 app.py 2>/dev/null || exec python3 app.py
 else
     echo -e "${BLUE}🚀 Production mode with Gunicorn${NC}"
-    exec gunicorn --config gunicorn.conf.py app:app
+    exec su-exec appuser gunicorn --config gunicorn.conf.py app:app 2>/dev/null || exec gunicorn --config gunicorn.conf.py app:app
 fi
