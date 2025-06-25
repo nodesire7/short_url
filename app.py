@@ -14,21 +14,11 @@ from datetime import datetime
 import os
 import logging
 from logging.handlers import RotatingFileHandler
-import threading
 import time
 
 # 数据库支持
-try:
-    import pymysql
-    MYSQL_AVAILABLE = True
-except ImportError:
-    MYSQL_AVAILABLE = False
-
-try:
-    import sqlite3
-    SQLITE_AVAILABLE = True
-except ImportError:
-    SQLITE_AVAILABLE = False
+import pymysql
+import pymysql.cursors
 
 # 缓存支持
 try:
@@ -44,9 +34,8 @@ API_TOKEN = os.getenv('API_TOKEN')
 if not API_TOKEN:
     raise ValueError("API_TOKEN environment variable is required")
 
-# 数据库配置
-DB_TYPE = os.getenv('DB_TYPE', 'sqlite').lower()  # sqlite, mysql
-DATABASE = os.getenv('DATABASE_PATH', '/app/data/shortlinks.db')
+# 数据库配置 - 只使用MySQL
+DB_TYPE = 'mysql'
 
 # MySQL配置
 MYSQL_HOST = os.getenv('MYSQL_HOST', 'localhost')
@@ -120,28 +109,18 @@ def setup_logging():
 
 access_logger = setup_logging()
 
-# 数据库抽象层
+# MySQL数据库管理器
 class DatabaseManager:
     def __init__(self):
-        self.db_type = DB_TYPE
+        self.db_type = 'mysql'
         self.pool = None
         self.cache = None
-        self._init_database()
+        self._init_mysql()
         self._init_cache()
-
-    def _init_database(self):
-        """初始化数据库连接"""
-        if self.db_type == 'mysql' and MYSQL_AVAILABLE:
-            self._init_mysql()
-        else:
-            self._init_sqlite()
 
     def _init_mysql(self):
         """初始化MySQL连接池"""
         try:
-            import pymysql.cursors
-            from pymysql import pooling
-
             config = {
                 'host': MYSQL_HOST,
                 'port': MYSQL_PORT,
@@ -154,6 +133,7 @@ class DatabaseManager:
             }
 
             # 创建连接池
+            from pymysql import pooling
             self.pool = pooling.ConnectionPool(
                 size=10,
                 name='shortlink_pool',
@@ -164,14 +144,7 @@ class DatabaseManager:
 
         except Exception as e:
             app.logger.error(f"MySQL initialization failed: {e}")
-            app.logger.warning("Falling back to SQLite")
-            self._init_sqlite()
-
-    def _init_sqlite(self):
-        """初始化SQLite连接池"""
-        self.db_type = 'sqlite'
-        self.pool = SQLitePool(DATABASE)
-        app.logger.info("SQLite connection pool initialized")
+            raise
 
     def _init_cache(self):
         """初始化Redis缓存"""
@@ -198,17 +171,11 @@ class DatabaseManager:
 
     def get_connection(self):
         """获取数据库连接"""
-        if self.db_type == 'mysql':
-            return self.pool.get_connection()
-        else:
-            return self.pool.get_connection()
+        return self.pool.get_connection()
 
     def return_connection(self, conn):
         """归还数据库连接"""
-        if self.db_type == 'mysql':
-            conn.close()  # MySQL连接池自动管理
-        else:
-            self.pool.return_connection(conn)
+        conn.close()  # MySQL连接池自动管理
 
     def execute_query(self, query, params=None, fetch=False):
         """执行数据库查询"""
@@ -218,51 +185,12 @@ class DatabaseManager:
             cursor.execute(query, params or ())
 
             if fetch:
-                if self.db_type == 'mysql':
-                    return cursor.fetchall()
-                else:
-                    return [dict(row) for row in cursor.fetchall()]
+                return cursor.fetchall()
             else:
-                if self.db_type == 'sqlite':
-                    conn.commit()
                 return cursor.rowcount
 
         finally:
             self.return_connection(conn)
-
-# SQLite连接池
-class SQLitePool:
-    def __init__(self, database_path, pool_size=10):
-        self.database_path = database_path
-        self.pool_size = pool_size
-        self.connections = []
-        self.lock = threading.Lock()
-        self._init_pool()
-
-    def _init_pool(self):
-        """初始化连接池"""
-        for _ in range(self.pool_size):
-            conn = sqlite3.connect(self.database_path, check_same_thread=False)
-            conn.row_factory = sqlite3.Row
-            self.connections.append(conn)
-
-    def get_connection(self):
-        """获取数据库连接"""
-        with self.lock:
-            if self.connections:
-                return self.connections.pop()
-            else:
-                conn = sqlite3.connect(self.database_path, check_same_thread=False)
-                conn.row_factory = sqlite3.Row
-                return conn
-
-    def return_connection(self, conn):
-        """归还数据库连接"""
-        with self.lock:
-            if len(self.connections) < self.pool_size:
-                self.connections.append(conn)
-            else:
-                conn.close()
 
 # 数据库管理器（延迟初始化）
 db_manager = None
@@ -275,82 +203,45 @@ def get_db_manager():
     return db_manager
 
 def init_db():
-    """初始化数据库"""
+    """初始化MySQL数据库"""
     db = get_db_manager()
 
-    if db.db_type == 'mysql':
-        # MySQL表结构
-        tables = {
-            'links': '''
-                CREATE TABLE IF NOT EXISTS links (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    short_code VARCHAR(50) UNIQUE NOT NULL,
-                    original_url TEXT NOT NULL,
-                    title VARCHAR(500),
-                    click_count INT DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                    INDEX idx_short_code (short_code),
-                    INDEX idx_created_at (created_at)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-            ''',
-            'clicks': '''
-                CREATE TABLE IF NOT EXISTS clicks (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    short_code VARCHAR(50) NOT NULL,
-                    ip_address VARCHAR(45),
-                    user_agent TEXT,
-                    referer TEXT,
-                    clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    INDEX idx_short_code (short_code),
-                    INDEX idx_clicked_at (clicked_at),
-                    FOREIGN KEY (short_code) REFERENCES links (short_code) ON DELETE CASCADE
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-            '''
-        }
-    else:
-        # SQLite表结构
-        tables = {
-            'links': '''
-                CREATE TABLE IF NOT EXISTS links (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    short_code TEXT UNIQUE NOT NULL,
-                    original_url TEXT NOT NULL,
-                    title TEXT,
-                    click_count INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''',
-            'clicks': '''
-                CREATE TABLE IF NOT EXISTS clicks (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    short_code TEXT NOT NULL,
-                    ip_address TEXT,
-                    user_agent TEXT,
-                    referer TEXT,
-                    clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (short_code) REFERENCES links (short_code)
-                )
-            '''
-        }
+    # MySQL表结构
+    tables = {
+        'links': '''
+            CREATE TABLE IF NOT EXISTS links (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                short_code VARCHAR(50) UNIQUE NOT NULL,
+                original_url TEXT NOT NULL,
+                title VARCHAR(500),
+                click_count INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_short_code (short_code),
+                INDEX idx_created_at (created_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        ''',
+        'clicks': '''
+            CREATE TABLE IF NOT EXISTS clicks (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                short_code VARCHAR(50) NOT NULL,
+                ip_address VARCHAR(45),
+                user_agent TEXT,
+                referer TEXT,
+                clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX idx_short_code (short_code),
+                INDEX idx_clicked_at (clicked_at),
+                FOREIGN KEY (short_code) REFERENCES links (short_code) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        '''
+    }
 
     try:
         # 创建表
         for table_name, create_sql in tables.items():
             db.execute_query(create_sql)
 
-        # 创建索引（SQLite）
-        if db.db_type == 'sqlite':
-            indexes = [
-                'CREATE INDEX IF NOT EXISTS idx_links_short_code ON links(short_code)',
-                'CREATE INDEX IF NOT EXISTS idx_clicks_short_code ON clicks(short_code)',
-                'CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at)'
-            ]
-            for index_sql in indexes:
-                db.execute_query(index_sql)
-
-        app.logger.info(f'Database ({db.db_type}) initialized successfully')
+        app.logger.info('MySQL database initialized successfully')
 
     except Exception as e:
         app.logger.error(f'Database initialization failed: {str(e)}')
@@ -373,10 +264,7 @@ def generate_short_code():
         code = ''.join(random.choice(chars) for _ in range(SHORT_CODE_LENGTH))
 
         db = get_db_manager()
-        if db.db_type == 'mysql':
-            result = db.execute_query("SELECT 1 FROM links WHERE short_code = %s", (code,), fetch=True)
-        else:
-            result = db.execute_query("SELECT 1 FROM links WHERE short_code = ?", (code,), fetch=True)
+        result = db.execute_query("SELECT 1 FROM links WHERE short_code = %s", (code,), fetch=True)
 
         if not result:
             return code
@@ -476,16 +364,10 @@ def create_short_link():
         # 保存到数据库
         db = get_db_manager()
 
-        if db.db_type == 'mysql':
-            result = db.execute_query(
-                "INSERT INTO links (short_code, original_url, title) VALUES (%s, %s, %s)",
-                (short_code, original_url, title)
-            )
-        else:
-            result = db.execute_query(
-                "INSERT INTO links (short_code, original_url, title) VALUES (?, ?, ?)",
-                (short_code, original_url, title)
-            )
+        result = db.execute_query(
+            "INSERT INTO links (short_code, original_url, title) VALUES (%s, %s, %s)",
+            (short_code, original_url, title)
+        )
 
         if result:
             app.logger.info(f'Created short link: {short_code} -> {original_url}')
@@ -522,48 +404,27 @@ def list_links():
         db = get_db_manager()
 
         # 获取总数
-        if db.db_type == 'mysql':
-            total_result = db.execute_query("SELECT COUNT(*) as count FROM links", fetch=True)
-            total = total_result[0]['count'] if total_result else 0
+        total_result = db.execute_query("SELECT COUNT(*) as count FROM links", fetch=True)
+        total = total_result[0]['count'] if total_result else 0
 
-            # 获取链接列表
-            links_result = db.execute_query(
-                "SELECT short_code, original_url, title, click_count, created_at FROM links "
-                "ORDER BY created_at DESC LIMIT %s OFFSET %s",
-                (limit, offset), fetch=True
-            )
-        else:
-            total_result = db.execute_query("SELECT COUNT(*) FROM links", fetch=True)
-            total = total_result[0][0] if total_result else 0
-
-            # 获取链接列表
-            links_result = db.execute_query(
-                "SELECT short_code, original_url, title, click_count, created_at FROM links "
-                "ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (limit, offset), fetch=True
-            )
+        # 获取链接列表
+        links_result = db.execute_query(
+            "SELECT short_code, original_url, title, click_count, created_at FROM links "
+            "ORDER BY created_at DESC LIMIT %s OFFSET %s",
+            (limit, offset), fetch=True
+        )
 
         links = []
         if links_result:
             for row in links_result:
-                if db.db_type == 'mysql':
-                    links.append({
-                        "short_code": row['short_code'],
-                        "short_url": f"{BASE_URL}/{row['short_code']}",
-                        "original_url": row['original_url'],
-                        "title": row['title'],
-                        "click_count": row['click_count'],
-                        "created_at": str(row['created_at'])
-                    })
-                else:
-                    links.append({
-                        "short_code": row[0],
-                        "short_url": f"{BASE_URL}/{row[0]}",
-                        "original_url": row[1],
-                        "title": row[2],
-                        "click_count": row[3],
-                        "created_at": row[4]
-                    })
+                links.append({
+                    "short_code": row['short_code'],
+                    "short_url": f"{BASE_URL}/{row['short_code']}",
+                    "original_url": row['original_url'],
+                    "title": row['title'],
+                    "click_count": row['click_count'],
+                    "created_at": str(row['created_at'])
+                })
 
         return jsonify({
             "success": True,
@@ -590,32 +451,18 @@ def get_stats(short_code):
         db = get_db_manager()
 
         # 获取链接信息
-        if db.db_type == 'mysql':
-            link_result = db.execute_query(
-                "SELECT original_url, title, click_count, created_at FROM links WHERE short_code = %s",
-                (short_code,), fetch=True
-            )
-            link = link_result[0] if link_result else None
+        link_result = db.execute_query(
+            "SELECT original_url, title, click_count, created_at FROM links WHERE short_code = %s",
+            (short_code,), fetch=True
+        )
+        link = link_result[0] if link_result else None
 
-            # 获取点击记录
-            clicks_result = db.execute_query(
-                "SELECT ip_address, user_agent, referer, clicked_at FROM clicks "
-                "WHERE short_code = %s ORDER BY clicked_at DESC LIMIT 100",
-                (short_code,), fetch=True
-            )
-        else:
-            link_result = db.execute_query(
-                "SELECT original_url, title, click_count, created_at FROM links WHERE short_code = ?",
-                (short_code,), fetch=True
-            )
-            link = link_result[0] if link_result else None
-
-            # 获取点击记录
-            clicks_result = db.execute_query(
-                "SELECT ip_address, user_agent, referer, clicked_at FROM clicks "
-                "WHERE short_code = ? ORDER BY clicked_at DESC LIMIT 100",
-                (short_code,), fetch=True
-            )
+        # 获取点击记录
+        clicks_result = db.execute_query(
+            "SELECT ip_address, user_agent, referer, clicked_at FROM clicks "
+            "WHERE short_code = %s ORDER BY clicked_at DESC LIMIT 100",
+            (short_code,), fetch=True
+        )
 
         if not link:
             return jsonify({"error": "Short link not found"}), 404
@@ -624,43 +471,23 @@ def get_stats(short_code):
         recent_clicks = []
         if clicks_result:
             for click in clicks_result:
-                if db.db_type == 'mysql':
-                    recent_clicks.append({
-                        "ip_address": click['ip_address'],
-                        "user_agent": click['user_agent'],
-                        "referer": click['referer'],
-                        "clicked_at": str(click['clicked_at'])
-                    })
-                else:
-                    recent_clicks.append({
-                        "ip_address": click[0],
-                        "user_agent": click[1],
-                        "referer": click[2],
-                        "clicked_at": click[3]
-                    })
+                recent_clicks.append({
+                    "ip_address": click['ip_address'],
+                    "user_agent": click['user_agent'],
+                    "referer": click['referer'],
+                    "clicked_at": str(click['clicked_at'])
+                })
 
-        if db.db_type == 'mysql':
-            return jsonify({
-                "success": True,
-                "short_code": short_code,
-                "short_url": f"{BASE_URL}/{short_code}",
-                "original_url": link['original_url'],
-                "title": link['title'],
-                "click_count": link['click_count'],
-                "created_at": str(link['created_at']),
-                "recent_clicks": recent_clicks
-            })
-        else:
-            return jsonify({
-                "success": True,
-                "short_code": short_code,
-                "short_url": f"{BASE_URL}/{short_code}",
-                "original_url": link[0],
-                "title": link[1],
-                "click_count": link[2],
-                "created_at": link[3],
-                "recent_clicks": recent_clicks
-            })
+        return jsonify({
+            "success": True,
+            "short_code": short_code,
+            "short_url": f"{BASE_URL}/{short_code}",
+            "original_url": link['original_url'],
+            "title": link['title'],
+            "click_count": link['click_count'],
+            "created_at": str(link['created_at']),
+            "recent_clicks": recent_clicks
+        })
             
     except Exception as e:
         app.logger.error(f'Error getting stats for {short_code}: {str(e)}')
@@ -675,18 +502,11 @@ def delete_link(short_code):
     try:
         db = get_db_manager()
 
-        if db.db_type == 'mysql':
-            # 删除相关的点击记录
-            db.execute_query("DELETE FROM clicks WHERE short_code = %s", (short_code,))
+        # 删除相关的点击记录
+        db.execute_query("DELETE FROM clicks WHERE short_code = %s", (short_code,))
 
-            # 删除链接
-            result = db.execute_query("DELETE FROM links WHERE short_code = %s", (short_code,))
-        else:
-            # 删除点击记录
-            db.execute_query("DELETE FROM clicks WHERE short_code = ?", (short_code,))
-
-            # 删除链接
-            result = db.execute_query("DELETE FROM links WHERE short_code = ?", (short_code,))
+        # 删除链接
+        result = db.execute_query("DELETE FROM links WHERE short_code = %s", (short_code,))
 
         if result == 0:
             return jsonify({"error": "Short link not found"}), 404
@@ -705,46 +525,28 @@ def redirect_link(short_code):
         db = get_db_manager()
 
         # 获取原始URL
-        if db.db_type == 'mysql':
-            result = db.execute_query("SELECT original_url FROM links WHERE short_code = %s", (short_code,), fetch=True)
-        else:
-            result = db.execute_query("SELECT original_url FROM links WHERE short_code = ?", (short_code,), fetch=True)
+        result = db.execute_query("SELECT original_url FROM links WHERE short_code = %s", (short_code,), fetch=True)
 
         if not result:
             return jsonify({"error": "Short link not found"}), 404
 
-        if db.db_type == 'mysql':
-            original_url = result[0]['original_url']
-        else:
-            original_url = result[0][0]
+        original_url = result[0]['original_url']
 
         # 记录点击
         ip_address = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR'))
         user_agent = request.headers.get('User-Agent', '')
         referer = request.headers.get('Referer', '')
 
-        if db.db_type == 'mysql':
-            db.execute_query(
-                "INSERT INTO clicks (short_code, ip_address, user_agent, referer) VALUES (%s, %s, %s, %s)",
-                (short_code, ip_address, user_agent, referer)
-            )
+        db.execute_query(
+            "INSERT INTO clicks (short_code, ip_address, user_agent, referer) VALUES (%s, %s, %s, %s)",
+            (short_code, ip_address, user_agent, referer)
+        )
 
-            # 更新点击计数
-            db.execute_query(
-                "UPDATE links SET click_count = click_count + 1, updated_at = CURRENT_TIMESTAMP WHERE short_code = %s",
-                (short_code,)
-            )
-        else:
-            db.execute_query(
-                "INSERT INTO clicks (short_code, ip_address, user_agent, referer) VALUES (?, ?, ?, ?)",
-                (short_code, ip_address, user_agent, referer)
-            )
-
-            # 更新点击计数
-            db.execute_query(
-                "UPDATE links SET click_count = click_count + 1, updated_at = CURRENT_TIMESTAMP WHERE short_code = ?",
-                (short_code,)
-            )
+        # 更新点击计数
+        db.execute_query(
+            "UPDATE links SET click_count = click_count + 1, updated_at = CURRENT_TIMESTAMP WHERE short_code = %s",
+            (short_code,)
+        )
 
         app.logger.info(f'Redirected {short_code} -> {original_url} from {ip_address}')
         return redirect(original_url)
