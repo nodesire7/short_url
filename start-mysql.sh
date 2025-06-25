@@ -27,11 +27,11 @@ echo -e "${YELLOW}🌐 Base URL: $BASE_URL${NC}"
 
 # 停止现有服务
 echo -e "${BLUE}🛑 停止现有服务...${NC}"
-docker-compose -f docker-compose.mysql.yml down 2>/dev/null || true
+docker-compose -f docker-compose.no-ports.yml down 2>/dev/null || true
 
 # 启动服务
 echo -e "${BLUE}🚀 启动服务...${NC}"
-docker-compose -f docker-compose.mysql.yml up -d
+docker-compose -f docker-compose.no-ports.yml up -d
 
 # 等待服务启动
 echo -e "${BLUE}⏳ 等待服务启动...${NC}"

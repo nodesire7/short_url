@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MySQL数据库
   mysql:
@@ -11,8 +9,7 @@ services:
       MYSQL_DATABASE: shortlink
       MYSQL_USER: shortlink
       MYSQL_PASSWORD: shortlink123456
-    ports:
-      - "3306:3306"
+    # 移除端口映射，只在容器内部使用
     volumes:
       - mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password
@@ -26,8 +23,7 @@ services:
     image: redis:7-alpine
     container_name: shortlink-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    # 移除端口映射，只在容器内部使用
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes

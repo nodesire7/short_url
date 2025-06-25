@@ -1,5 +1,5 @@
 services:
-  # MySQL数据库
+  # MySQL数据库（内部使用，无端口映射）
   mysql:
     image: mysql:8.0
     container_name: shortlink-mysql
@@ -9,7 +9,6 @@ services:
       MYSQL_DATABASE: shortlink
       MYSQL_USER: shortlink
       MYSQL_PASSWORD: shortlink123456
-    # 移除端口映射，避免端口冲突
     volumes:
       - mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password
@@ -18,12 +17,11 @@ services:
       timeout: 20s
       retries: 10
 
-  # Redis缓存
+  # Redis缓存（内部使用，无端口映射）
   redis:
     image: redis:7-alpine
     container_name: shortlink-redis
     restart: unless-stopped
-    # 移除端口映射，避免端口冲突
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -33,7 +31,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # 短链接API服务
+  # 短链接API服务（只暴露API端口）
   shortlink-api:
     image: nodesire77/shorturl_api:latest
     container_name: shortlink-api
@@ -45,7 +43,7 @@ services:
         condition: service_healthy
     environment:
       # 基本配置
-      - API_TOKEN=${API_TOKEN:-$(openssl rand -hex 32)}
+      - API_TOKEN=${API_TOKEN:-TaDeixjf9alwtJe5v4wv7F7cIpXM03hl}
       - BASE_URL=${BASE_URL:-http://localhost:2282}
       - SHORT_CODE_LENGTH=${SHORT_CODE_LENGTH:-6}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -64,7 +62,7 @@ services:
       - REDIS_DB=0
       - CACHE_TTL=3600
     ports:
-      - "2282:2282"
+      - "2282:2282"  # 只暴露API端口
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:2282/health"]
       interval: 30s
