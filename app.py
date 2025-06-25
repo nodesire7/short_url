@@ -24,14 +24,24 @@ app = Flask(__name__)
 API_TOKEN = os.getenv('API_TOKEN')
 if not API_TOKEN:
     raise ValueError("API_TOKEN environment variable is required")
-DATABASE = "/app/data/shortlinks.db"
+DATABASE = os.getenv('DATABASE_PATH', '/app/data/shortlinks.db')
 BASE_URL = os.getenv('BASE_URL', 'http://localhost:2282')
 SHORT_CODE_LENGTH = int(os.getenv('SHORT_CODE_LENGTH', '6'))
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
 
-# 确保数据目录存在
-os.makedirs('/app/data', exist_ok=True)
-os.makedirs('/app/logs', exist_ok=True)
+# 确保数据目录存在并设置权限
+data_dir = '/app/data'
+logs_dir = '/app/logs'
+
+os.makedirs(data_dir, exist_ok=True)
+os.makedirs(logs_dir, exist_ok=True)
+
+# 确保目录权限正确
+try:
+    os.chmod(data_dir, 0o755)
+    os.chmod(logs_dir, 0o755)
+except PermissionError:
+    pass  # 在某些环境中可能没有权限修改
 
 # 配置日志
 def setup_logging():
@@ -107,12 +117,20 @@ class DatabasePool:
             else:
                 conn.close()
 
-# 初始化数据库连接池
-db_pool = DatabasePool(DATABASE)
+# 数据库连接池（延迟初始化）
+db_pool = None
+
+def get_db_pool():
+    """获取数据库连接池，延迟初始化"""
+    global db_pool
+    if db_pool is None:
+        db_pool = DatabasePool(DATABASE)
+    return db_pool
 
 def init_db():
     """初始化数据库"""
-    conn = db_pool.get_connection()
+    pool = get_db_pool()
+    conn = pool.get_connection()
     try:
         cursor = conn.cursor()
         
@@ -154,7 +172,7 @@ def init_db():
         app.logger.error(f'Database initialization failed: {str(e)}')
         raise
     finally:
-        db_pool.return_connection(conn)
+        pool.return_connection(conn)
 
 def verify_auth():
     """验证Authorization"""
@@ -172,14 +190,15 @@ def generate_short_code():
     for _ in range(max_attempts):
         code = ''.join(random.choice(chars) for _ in range(SHORT_CODE_LENGTH))
         
-        conn = db_pool.get_connection()
+        pool = get_db_pool()
+        conn = pool.get_connection()
         try:
             cursor = conn.cursor()
             cursor.execute("SELECT 1 FROM links WHERE short_code = ?", (code,))
             if not cursor.fetchone():
                 return code
         finally:
-            db_pool.return_connection(conn)
+            pool.return_connection(conn)
     
     raise Exception("Failed to generate unique short code")
 

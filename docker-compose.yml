@@ -13,8 +13,8 @@ services:
     ports:
       - "2282:2282"
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - data:/app/data
+      - logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:2282/health"]
       interval: 30s
@@ -35,7 +35,7 @@ services:
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./logs:/var/log/nginx
+      - logs:/var/log/nginx
     depends_on:
       - shortlink-api
     healthcheck:

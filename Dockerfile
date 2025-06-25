@@ -12,8 +12,9 @@ RUN apt-get update && apt-get install -y \
 # 创建应用用户
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# 创建必要目录
+# 创建必要目录并设置权限
 RUN mkdir -p /app/data /app/logs \
+    && chmod 755 /app/data /app/logs \
     && chown -R appuser:appuser /app
 
 # 复制依赖文件
