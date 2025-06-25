@@ -3,7 +3,7 @@
 生产级短链接API服务
 使用Gunicorn + Nginx部署
 端口: 2282
-认证: Authorization=TaDeixjf9alwtJe5v4wv7F7cIpXM03hl
+认证: Authorization=a7X2p9KmL1sD4fGh0Qz8bV6yW3nUo5Ir (自行修改随机Token)
 """
 
 from flask import Flask, request, jsonify, redirect
