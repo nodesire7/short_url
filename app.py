@@ -260,7 +260,9 @@ def log_request():
     """记录请求日志"""
     access_logger.info(
         f'{request.remote_addr} - "{request.method} {request.path}" '
-        f'User-Agent: "{request.headers.get("User-Agent", "")}"'
+        f'User-Agent: "{request.headers.get("User-Agent", "")}" '
+        f'Authorization: "{request.headers.get("Authorization", "")[:20]}..." '
+        f'Content-Type: "{request.headers.get("Content-Type", "")}"'
     )
 
 @app.after_request
@@ -270,17 +272,45 @@ def log_response(response):
         f'{request.remote_addr} - "{request.method} {request.path}" '
         f'{response.status_code} {response.content_length or 0}'
     )
+
+    # 添加CORS头
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+
+    return response
+
+# 处理OPTIONS请求
+@app.route('/api/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    """处理预检请求"""
+    response = jsonify({'status': 'ok'})
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     return response
 
 @app.route('/api/create', methods=['POST'])
 def create_short_link():
     """创建短链接"""
+    app.logger.info(f"Create request: {request.method} {request.path}")
+    app.logger.info(f"Headers: {dict(request.headers)}")
+    app.logger.info(f"Content-Type: {request.content_type}")
+
     if not verify_auth():
+        app.logger.warning("Unauthorized access attempt")
         return jsonify({"error": "Unauthorized"}), 401
-    
+
     try:
+        # 获取原始数据用于调试
+        raw_data = request.get_data()
+        app.logger.info(f"Raw request data: {raw_data}")
+
         data = request.get_json()
+        app.logger.info(f"Parsed JSON data: {data}")
+
         if not data:
+            app.logger.error("No JSON data received")
             return jsonify({"error": "Invalid JSON"}), 400
         
         original_url = data.get('url')
