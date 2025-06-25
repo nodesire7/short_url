@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # 短链接API服务（SQLite版本，解决权限问题）
+  shortlink-api:
+    image: nodesire77/shorturl_api:latest
+    container_name: shortlink-api-sqlite
+    restart: unless-stopped
+    environment:
+      # 基本配置
+      - API_TOKEN=${API_TOKEN:-your-secure-api-token-here}
+      - BASE_URL=${BASE_URL:-http://localhost:2282}
+      - SHORT_CODE_LENGTH=${SHORT_CODE_LENGTH:-6}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      
+      # 数据库配置（使用临时目录避免权限问题）
+      - DB_TYPE=sqlite
+      - DATABASE_PATH=/tmp/shortlinks.db
+    ports:
+      - "2282:2282"
+    volumes:
+      # 使用tmpfs避免权限问题，数据存储在内存中
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 100M
+      # 日志目录使用命名volume
+      - api_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2282/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  api_logs:
+    driver: local
+
+networks:
+  default:
+    name: shortlink-sqlite-network

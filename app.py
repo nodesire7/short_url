@@ -7,7 +7,6 @@
 """
 
 from flask import Flask, request, jsonify, redirect
-import sqlite3
 import string
 import random
 import re
@@ -18,16 +17,55 @@ from logging.handlers import RotatingFileHandler
 import threading
 import time
 
+# 数据库支持
+try:
+    import pymysql
+    MYSQL_AVAILABLE = True
+except ImportError:
+    MYSQL_AVAILABLE = False
+
+try:
+    import sqlite3
+    SQLITE_AVAILABLE = True
+except ImportError:
+    SQLITE_AVAILABLE = False
+
+# 缓存支持
+try:
+    import redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+
 app = Flask(__name__)
 
 # 配置
 API_TOKEN = os.getenv('API_TOKEN')
 if not API_TOKEN:
     raise ValueError("API_TOKEN environment variable is required")
+
+# 数据库配置
+DB_TYPE = os.getenv('DB_TYPE', 'sqlite').lower()  # sqlite, mysql
 DATABASE = os.getenv('DATABASE_PATH', '/app/data/shortlinks.db')
+
+# MySQL配置
+MYSQL_HOST = os.getenv('MYSQL_HOST', 'localhost')
+MYSQL_PORT = int(os.getenv('MYSQL_PORT', '3306'))
+MYSQL_USER = os.getenv('MYSQL_USER', 'shortlink')
+MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD', 'shortlink123456')
+MYSQL_DATABASE = os.getenv('MYSQL_DATABASE', 'shortlink')
+
+# Redis配置
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+REDIS_PORT = int(os.getenv('REDIS_PORT', '6379'))
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
+REDIS_DB = int(os.getenv('REDIS_DB', '0'))
+
+# 应用配置
 BASE_URL = os.getenv('BASE_URL', 'http://localhost:2282')
 SHORT_CODE_LENGTH = int(os.getenv('SHORT_CODE_LENGTH', '6'))
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+CACHE_TTL = int(os.getenv('CACHE_TTL', '3600'))  # 缓存过期时间（秒）
 
 # 确保数据目录存在并设置权限
 data_dir = '/app/data'
@@ -82,33 +120,142 @@ def setup_logging():
 
 access_logger = setup_logging()
 
-# 数据库连接池
-class DatabasePool:
+# 数据库抽象层
+class DatabaseManager:
+    def __init__(self):
+        self.db_type = DB_TYPE
+        self.pool = None
+        self.cache = None
+        self._init_database()
+        self._init_cache()
+
+    def _init_database(self):
+        """初始化数据库连接"""
+        if self.db_type == 'mysql' and MYSQL_AVAILABLE:
+            self._init_mysql()
+        else:
+            self._init_sqlite()
+
+    def _init_mysql(self):
+        """初始化MySQL连接池"""
+        try:
+            import pymysql.cursors
+            from pymysql import pooling
+
+            config = {
+                'host': MYSQL_HOST,
+                'port': MYSQL_PORT,
+                'user': MYSQL_USER,
+                'password': MYSQL_PASSWORD,
+                'database': MYSQL_DATABASE,
+                'charset': 'utf8mb4',
+                'cursorclass': pymysql.cursors.DictCursor,
+                'autocommit': True
+            }
+
+            # 创建连接池
+            self.pool = pooling.ConnectionPool(
+                size=10,
+                name='shortlink_pool',
+                **config
+            )
+
+            app.logger.info("MySQL connection pool initialized")
+
+        except Exception as e:
+            app.logger.error(f"MySQL initialization failed: {e}")
+            app.logger.warning("Falling back to SQLite")
+            self._init_sqlite()
+
+    def _init_sqlite(self):
+        """初始化SQLite连接池"""
+        self.db_type = 'sqlite'
+        self.pool = SQLitePool(DATABASE)
+        app.logger.info("SQLite connection pool initialized")
+
+    def _init_cache(self):
+        """初始化Redis缓存"""
+        if REDIS_AVAILABLE:
+            try:
+                self.cache = redis.Redis(
+                    host=REDIS_HOST,
+                    port=REDIS_PORT,
+                    password=REDIS_PASSWORD if REDIS_PASSWORD else None,
+                    db=REDIS_DB,
+                    decode_responses=True,
+                    socket_connect_timeout=5,
+                    socket_timeout=5
+                )
+                # 测试连接
+                self.cache.ping()
+                app.logger.info("Redis cache initialized")
+            except Exception as e:
+                app.logger.warning(f"Redis initialization failed: {e}")
+                self.cache = None
+        else:
+            app.logger.info("Redis not available, using in-memory cache")
+            self.cache = None
+
+    def get_connection(self):
+        """获取数据库连接"""
+        if self.db_type == 'mysql':
+            return self.pool.get_connection()
+        else:
+            return self.pool.get_connection()
+
+    def return_connection(self, conn):
+        """归还数据库连接"""
+        if self.db_type == 'mysql':
+            conn.close()  # MySQL连接池自动管理
+        else:
+            self.pool.return_connection(conn)
+
+    def execute_query(self, query, params=None, fetch=False):
+        """执行数据库查询"""
+        conn = self.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(query, params or ())
+
+            if fetch:
+                if self.db_type == 'mysql':
+                    return cursor.fetchall()
+                else:
+                    return [dict(row) for row in cursor.fetchall()]
+            else:
+                if self.db_type == 'sqlite':
+                    conn.commit()
+                return cursor.rowcount
+
+        finally:
+            self.return_connection(conn)
+
+# SQLite连接池
+class SQLitePool:
     def __init__(self, database_path, pool_size=10):
         self.database_path = database_path
         self.pool_size = pool_size
         self.connections = []
         self.lock = threading.Lock()
         self._init_pool()
-    
+
     def _init_pool(self):
         """初始化连接池"""
         for _ in range(self.pool_size):
             conn = sqlite3.connect(self.database_path, check_same_thread=False)
             conn.row_factory = sqlite3.Row
             self.connections.append(conn)
-    
+
     def get_connection(self):
         """获取数据库连接"""
         with self.lock:
             if self.connections:
                 return self.connections.pop()
             else:
-                # 如果池中没有连接，创建新连接
                 conn = sqlite3.connect(self.database_path, check_same_thread=False)
                 conn.row_factory = sqlite3.Row
                 return conn
-    
+
     def return_connection(self, conn):
         """归还数据库连接"""
         with self.lock:
@@ -117,103 +264,97 @@ class DatabasePool:
             else:
                 conn.close()
 
-# 数据库连接池（延迟初始化）
-db_pool = None
+# 数据库管理器（延迟初始化）
+db_manager = None
 
-def get_db_pool():
-    """获取数据库连接池，延迟初始化"""
-    global db_pool, DATABASE
-    if db_pool is None:
-        # 尝试多个数据库路径
-        db_paths = [
-            DATABASE,  # 原始路径
-            "/tmp/shortlinks.db",  # 临时目录
-            "./shortlinks.db",  # 当前目录
-            ":memory:"  # 内存数据库（最后备选）
-        ]
-
-        working_db_path = None
-
-        for db_path in db_paths:
-            try:
-                if db_path == ":memory:":
-                    # 内存数据库总是可用
-                    working_db_path = db_path
-                    app.logger.warning("Using in-memory database as fallback")
-                    break
-
-                # 确保目录存在
-                db_dir = os.path.dirname(db_path)
-                if db_dir and not os.path.exists(db_dir):
-                    os.makedirs(db_dir, mode=0o755, exist_ok=True)
-
-                # 测试数据库文件创建权限
-                test_conn = sqlite3.connect(db_path)
-                test_conn.execute("SELECT 1")
-                test_conn.close()
-
-                working_db_path = db_path
-                app.logger.info(f"Database file accessible: {db_path}")
-                break
-
-            except (sqlite3.OperationalError, PermissionError, OSError) as e:
-                app.logger.warning(f"Cannot use database path {db_path}: {e}")
-                continue
-
-        if working_db_path is None:
-            working_db_path = ":memory:"
-            app.logger.error("All database paths failed, using in-memory database")
-
-        DATABASE = working_db_path
-        db_pool = DatabasePool(DATABASE)
-    return db_pool
+def get_db_manager():
+    """获取数据库管理器，延迟初始化"""
+    global db_manager
+    if db_manager is None:
+        db_manager = DatabaseManager()
+    return db_manager
 
 def init_db():
     """初始化数据库"""
-    pool = get_db_pool()
-    conn = pool.get_connection()
+    db = get_db_manager()
+
+    if db.db_type == 'mysql':
+        # MySQL表结构
+        tables = {
+            'links': '''
+                CREATE TABLE IF NOT EXISTS links (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    short_code VARCHAR(50) UNIQUE NOT NULL,
+                    original_url TEXT NOT NULL,
+                    title VARCHAR(500),
+                    click_count INT DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_short_code (short_code),
+                    INDEX idx_created_at (created_at)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            ''',
+            'clicks': '''
+                CREATE TABLE IF NOT EXISTS clicks (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    short_code VARCHAR(50) NOT NULL,
+                    ip_address VARCHAR(45),
+                    user_agent TEXT,
+                    referer TEXT,
+                    clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_short_code (short_code),
+                    INDEX idx_clicked_at (clicked_at),
+                    FOREIGN KEY (short_code) REFERENCES links (short_code) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            '''
+        }
+    else:
+        # SQLite表结构
+        tables = {
+            'links': '''
+                CREATE TABLE IF NOT EXISTS links (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    short_code TEXT UNIQUE NOT NULL,
+                    original_url TEXT NOT NULL,
+                    title TEXT,
+                    click_count INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''',
+            'clicks': '''
+                CREATE TABLE IF NOT EXISTS clicks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    short_code TEXT NOT NULL,
+                    ip_address TEXT,
+                    user_agent TEXT,
+                    referer TEXT,
+                    clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (short_code) REFERENCES links (short_code)
+                )
+            '''
+        }
+
     try:
-        cursor = conn.cursor()
-        
-        # 创建链接表
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS links (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                short_code TEXT UNIQUE NOT NULL,
-                original_url TEXT NOT NULL,
-                title TEXT,
-                click_count INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # 创建点击记录表
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS clicks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                short_code TEXT NOT NULL,
-                ip_address TEXT,
-                user_agent TEXT,
-                referer TEXT,
-                clicked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (short_code) REFERENCES links (short_code)
-            )
-        ''')
-        
-        # 创建索引
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_links_short_code ON links(short_code)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_clicks_short_code ON clicks(short_code)')
-        cursor.execute('CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at)')
-        
-        conn.commit()
-        app.logger.info('Database initialized successfully')
-        
+        # 创建表
+        for table_name, create_sql in tables.items():
+            db.execute_query(create_sql)
+
+        # 创建索引（SQLite）
+        if db.db_type == 'sqlite':
+            indexes = [
+                'CREATE INDEX IF NOT EXISTS idx_links_short_code ON links(short_code)',
+                'CREATE INDEX IF NOT EXISTS idx_clicks_short_code ON clicks(short_code)',
+                'CREATE INDEX IF NOT EXISTS idx_clicks_clicked_at ON clicks(clicked_at)'
+            ]
+            for index_sql in indexes:
+                db.execute_query(index_sql)
+
+        app.logger.info(f'Database ({db.db_type}) initialized successfully')
+
     except Exception as e:
         app.logger.error(f'Database initialization failed: {str(e)}')
         raise
-    finally:
-        pool.return_connection(conn)
 
 def verify_auth():
     """验证Authorization"""
