@@ -368,20 +368,19 @@ def generate_short_code():
     """生成短链接代码"""
     chars = string.ascii_letters + string.digits
     max_attempts = 10
-    
+
     for _ in range(max_attempts):
         code = ''.join(random.choice(chars) for _ in range(SHORT_CODE_LENGTH))
-        
-        pool = get_db_pool()
-        conn = pool.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1 FROM links WHERE short_code = ?", (code,))
-            if not cursor.fetchone():
-                return code
-        finally:
-            pool.return_connection(conn)
-    
+
+        db = get_db_manager()
+        if db.db_type == 'mysql':
+            result = db.execute_query("SELECT 1 FROM links WHERE short_code = %s", (code,), fetch=True)
+        else:
+            result = db.execute_query("SELECT 1 FROM links WHERE short_code = ?", (code,), fetch=True)
+
+        if not result:
+            return code
+
     raise Exception("Failed to generate unique short code")
 
 def is_valid_url(url):
@@ -475,17 +474,22 @@ def create_short_link():
             short_code = generate_short_code()
         
         # 保存到数据库
-        conn = db_pool.get_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
+        db = get_db_manager()
+
+        if db.db_type == 'mysql':
+            result = db.execute_query(
+                "INSERT INTO links (short_code, original_url, title) VALUES (%s, %s, %s)",
+                (short_code, original_url, title)
+            )
+        else:
+            result = db.execute_query(
                 "INSERT INTO links (short_code, original_url, title) VALUES (?, ?, ?)",
                 (short_code, original_url, title)
             )
-            conn.commit()
-            
+
+        if result:
             app.logger.info(f'Created short link: {short_code} -> {original_url}')
-            
+
             return jsonify({
                 "success": True,
                 "short_code": short_code,
@@ -494,11 +498,8 @@ def create_short_link():
                 "title": title,
                 "created_at": datetime.now().isoformat()
             }), 201
-            
-        except sqlite3.IntegrityError:
-            return jsonify({"error": "Short code already exists"}), 409
-        finally:
-            db_pool.return_connection(conn)
+        else:
+            return jsonify({"error": "Failed to create short link"}), 500
             
     except Exception as e:
         import traceback
@@ -517,46 +518,63 @@ def list_links():
         page = max(1, int(request.args.get('page', 1)))
         limit = min(100, max(1, int(request.args.get('limit', 20))))
         offset = (page - 1) * limit
-        
-        conn = db_pool.get_connection()
-        try:
-            cursor = conn.cursor()
-            
-            # 获取总数
-            cursor.execute("SELECT COUNT(*) FROM links")
-            total = cursor.fetchone()[0]
-            
+
+        db = get_db_manager()
+
+        # 获取总数
+        if db.db_type == 'mysql':
+            total_result = db.execute_query("SELECT COUNT(*) as count FROM links", fetch=True)
+            total = total_result[0]['count'] if total_result else 0
+
             # 获取链接列表
-            cursor.execute(
+            links_result = db.execute_query(
+                "SELECT short_code, original_url, title, click_count, created_at FROM links "
+                "ORDER BY created_at DESC LIMIT %s OFFSET %s",
+                (limit, offset), fetch=True
+            )
+        else:
+            total_result = db.execute_query("SELECT COUNT(*) FROM links", fetch=True)
+            total = total_result[0][0] if total_result else 0
+
+            # 获取链接列表
+            links_result = db.execute_query(
                 "SELECT short_code, original_url, title, click_count, created_at FROM links "
                 "ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                (limit, offset)
+                (limit, offset), fetch=True
             )
-            
-            links = []
-            for row in cursor.fetchall():
-                links.append({
-                    "short_code": row[0],
-                    "short_url": f"{BASE_URL}/{row[0]}",
-                    "original_url": row[1],
-                    "title": row[2],
-                    "click_count": row[3],
-                    "created_at": row[4]
-                })
-            
-            return jsonify({
-                "success": True,
-                "links": links,
-                "pagination": {
-                    "page": page,
-                    "limit": limit,
-                    "total": total,
-                    "pages": (total + limit - 1) // limit
-                }
-            })
-            
-        finally:
-            db_pool.return_connection(conn)
+
+        links = []
+        if links_result:
+            for row in links_result:
+                if db.db_type == 'mysql':
+                    links.append({
+                        "short_code": row['short_code'],
+                        "short_url": f"{BASE_URL}/{row['short_code']}",
+                        "original_url": row['original_url'],
+                        "title": row['title'],
+                        "click_count": row['click_count'],
+                        "created_at": str(row['created_at'])
+                    })
+                else:
+                    links.append({
+                        "short_code": row[0],
+                        "short_url": f"{BASE_URL}/{row[0]}",
+                        "original_url": row[1],
+                        "title": row[2],
+                        "click_count": row[3],
+                        "created_at": row[4]
+                    })
+
+        return jsonify({
+            "success": True,
+            "links": links,
+            "pagination": {
+                "page": page,
+                "limit": limit,
+                "total": total,
+                "pages": (total + limit - 1) // limit
+            }
+        })
             
     except Exception as e:
         app.logger.error(f'Error listing links: {str(e)}')
@@ -569,28 +587,70 @@ def get_stats(short_code):
         return jsonify({"error": "Unauthorized"}), 401
     
     try:
-        conn = db_pool.get_connection()
-        try:
-            cursor = conn.cursor()
-            
-            # 获取链接信息
-            cursor.execute(
-                "SELECT original_url, title, click_count, created_at FROM links WHERE short_code = ?",
-                (short_code,)
+        db = get_db_manager()
+
+        # 获取链接信息
+        if db.db_type == 'mysql':
+            link_result = db.execute_query(
+                "SELECT original_url, title, click_count, created_at FROM links WHERE short_code = %s",
+                (short_code,), fetch=True
             )
-            link = cursor.fetchone()
-            
-            if not link:
-                return jsonify({"error": "Short link not found"}), 404
-            
-            # 获取最近点击记录
-            cursor.execute(
+            link = link_result[0] if link_result else None
+
+            # 获取点击记录
+            clicks_result = db.execute_query(
+                "SELECT ip_address, user_agent, referer, clicked_at FROM clicks "
+                "WHERE short_code = %s ORDER BY clicked_at DESC LIMIT 100",
+                (short_code,), fetch=True
+            )
+        else:
+            link_result = db.execute_query(
+                "SELECT original_url, title, click_count, created_at FROM links WHERE short_code = ?",
+                (short_code,), fetch=True
+            )
+            link = link_result[0] if link_result else None
+
+            # 获取点击记录
+            clicks_result = db.execute_query(
                 "SELECT ip_address, user_agent, referer, clicked_at FROM clicks "
                 "WHERE short_code = ? ORDER BY clicked_at DESC LIMIT 100",
-                (short_code,)
+                (short_code,), fetch=True
             )
-            clicks = cursor.fetchall()
-            
+
+        if not link:
+            return jsonify({"error": "Short link not found"}), 404
+
+        # 处理点击记录
+        recent_clicks = []
+        if clicks_result:
+            for click in clicks_result:
+                if db.db_type == 'mysql':
+                    recent_clicks.append({
+                        "ip_address": click['ip_address'],
+                        "user_agent": click['user_agent'],
+                        "referer": click['referer'],
+                        "clicked_at": str(click['clicked_at'])
+                    })
+                else:
+                    recent_clicks.append({
+                        "ip_address": click[0],
+                        "user_agent": click[1],
+                        "referer": click[2],
+                        "clicked_at": click[3]
+                    })
+
+        if db.db_type == 'mysql':
+            return jsonify({
+                "success": True,
+                "short_code": short_code,
+                "short_url": f"{BASE_URL}/{short_code}",
+                "original_url": link['original_url'],
+                "title": link['title'],
+                "click_count": link['click_count'],
+                "created_at": str(link['created_at']),
+                "recent_clicks": recent_clicks
+            })
+        else:
             return jsonify({
                 "success": True,
                 "short_code": short_code,
@@ -599,18 +659,8 @@ def get_stats(short_code):
                 "title": link[1],
                 "click_count": link[2],
                 "created_at": link[3],
-                "recent_clicks": [
-                    {
-                        "ip_address": click[0],
-                        "user_agent": click[1],
-                        "referer": click[2],
-                        "clicked_at": click[3]
-                    } for click in clicks
-                ]
+                "recent_clicks": recent_clicks
             })
-            
-        finally:
-            db_pool.return_connection(conn)
             
     except Exception as e:
         app.logger.error(f'Error getting stats for {short_code}: {str(e)}')
@@ -623,26 +673,26 @@ def delete_link(short_code):
         return jsonify({"error": "Unauthorized"}), 401
     
     try:
-        conn = db_pool.get_connection()
-        try:
-            cursor = conn.cursor()
-            
-            # 删除点击记录
-            cursor.execute("DELETE FROM clicks WHERE short_code = ?", (short_code,))
-            
+        db = get_db_manager()
+
+        if db.db_type == 'mysql':
+            # 删除相关的点击记录
+            db.execute_query("DELETE FROM clicks WHERE short_code = %s", (short_code,))
+
             # 删除链接
-            cursor.execute("DELETE FROM links WHERE short_code = ?", (short_code,))
-            
-            if cursor.rowcount == 0:
-                return jsonify({"error": "Short link not found"}), 404
-            
-            conn.commit()
-            app.logger.info(f'Deleted short link: {short_code}')
-            
-            return jsonify({"success": True, "message": "Short link deleted"})
-            
-        finally:
-            db_pool.return_connection(conn)
+            result = db.execute_query("DELETE FROM links WHERE short_code = %s", (short_code,))
+        else:
+            # 删除点击记录
+            db.execute_query("DELETE FROM clicks WHERE short_code = ?", (short_code,))
+
+            # 删除链接
+            result = db.execute_query("DELETE FROM links WHERE short_code = ?", (short_code,))
+
+        if result == 0:
+            return jsonify({"error": "Short link not found"}), 404
+
+        app.logger.info(f'Deleted short link: {short_code}')
+        return jsonify({"success": True, "message": "Short link deleted"})
             
     except Exception as e:
         app.logger.error(f'Error deleting link {short_code}: {str(e)}')
@@ -652,43 +702,52 @@ def delete_link(short_code):
 def redirect_link(short_code):
     """短链接重定向"""
     try:
-        conn = db_pool.get_connection()
-        try:
-            cursor = conn.cursor()
-            
-            # 获取原始URL
-            cursor.execute("SELECT original_url FROM links WHERE short_code = ?", (short_code,))
-            result = cursor.fetchone()
-            
-            if not result:
-                return jsonify({"error": "Short link not found"}), 404
-            
-            original_url = result[0]
-            
-            # 记录点击
-            ip_address = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR'))
-            user_agent = request.headers.get('User-Agent', '')
-            referer = request.headers.get('Referer', '')
-            
-            cursor.execute(
+        db = get_db_manager()
+
+        # 获取原始URL
+        if db.db_type == 'mysql':
+            result = db.execute_query("SELECT original_url FROM links WHERE short_code = %s", (short_code,), fetch=True)
+        else:
+            result = db.execute_query("SELECT original_url FROM links WHERE short_code = ?", (short_code,), fetch=True)
+
+        if not result:
+            return jsonify({"error": "Short link not found"}), 404
+
+        if db.db_type == 'mysql':
+            original_url = result[0]['original_url']
+        else:
+            original_url = result[0][0]
+
+        # 记录点击
+        ip_address = request.environ.get('HTTP_X_FORWARDED_FOR', request.environ.get('REMOTE_ADDR'))
+        user_agent = request.headers.get('User-Agent', '')
+        referer = request.headers.get('Referer', '')
+
+        if db.db_type == 'mysql':
+            db.execute_query(
+                "INSERT INTO clicks (short_code, ip_address, user_agent, referer) VALUES (%s, %s, %s, %s)",
+                (short_code, ip_address, user_agent, referer)
+            )
+
+            # 更新点击计数
+            db.execute_query(
+                "UPDATE links SET click_count = click_count + 1, updated_at = CURRENT_TIMESTAMP WHERE short_code = %s",
+                (short_code,)
+            )
+        else:
+            db.execute_query(
                 "INSERT INTO clicks (short_code, ip_address, user_agent, referer) VALUES (?, ?, ?, ?)",
                 (short_code, ip_address, user_agent, referer)
             )
-            
+
             # 更新点击计数
-            cursor.execute(
+            db.execute_query(
                 "UPDATE links SET click_count = click_count + 1, updated_at = CURRENT_TIMESTAMP WHERE short_code = ?",
                 (short_code,)
             )
-            
-            conn.commit()
-            
-            app.logger.info(f'Redirected {short_code} -> {original_url} from {ip_address}')
-            
-            return redirect(original_url)
-            
-        finally:
-            db_pool.return_connection(conn)
+
+        app.logger.info(f'Redirected {short_code} -> {original_url} from {ip_address}')
+        return redirect(original_url)
             
     except Exception as e:
         app.logger.error(f'Error redirecting {short_code}: {str(e)}')
@@ -699,16 +758,12 @@ def health_check():
     """健康检查"""
     try:
         # 检查数据库连接
-        conn = db_pool.get_connection()
+        db = get_db_manager()
         try:
-            cursor = conn.cursor()
-            cursor.execute("SELECT 1")
-            cursor.fetchone()
+            db.execute_query("SELECT 1")
             db_status = "ok"
         except Exception:
             db_status = "error"
-        finally:
-            db_pool.return_connection(conn)
         
         return jsonify({
             "status": "ok",
