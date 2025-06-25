@@ -22,10 +22,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # 复制应用代码
 COPY app.py .
 COPY gunicorn.conf.py .
-COPY simple-entrypoint.sh .
-
-# 设置启动脚本权限
-RUN chmod +x simple-entrypoint.sh
 
 # 设置权限
 RUN chmod -R 755 /app
@@ -38,5 +34,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 2282
 
 # 启动命令
-ENTRYPOINT ["./simple-entrypoint.sh"]
-CMD []
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "app:app"]
