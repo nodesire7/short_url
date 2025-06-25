@@ -56,7 +56,7 @@ echo "服务地址: http://localhost:2282"
 Authorization: YOUR_API_TOKEN
 ```
 
-### 创建短链接
+### 创建短链接（自动生成二维码）
 ```bash
 curl -X POST http://localhost:2282/api/create \
   -H "Authorization: YOUR_API_TOKEN" \
@@ -66,6 +66,19 @@ curl -X POST http://localhost:2282/api/create \
     "title": "示例网站",
     "code": "custom"
   }'
+```
+
+**响应示例**：
+```json
+{
+  "success": true,
+  "short_code": "custom",
+  "short_url": "https://s.gbtgame.me/custom",
+  "original_url": "https://www.example.com",
+  "title": "示例网站",
+  "created_at": "2025-06-25T16:30:00",
+  "qr_code": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+}
 ```
 
 ### 获取链接列表
@@ -90,11 +103,6 @@ curl -X DELETE http://localhost:2282/api/delete/abc123 \
 ```bash
 curl -X GET http://localhost:2282/api/stats \
   -H "Authorization: YOUR_API_TOKEN"
-```
-
-### 生成二维码
-```bash
-curl -X GET http://localhost:2282/api/qr/abc123
 ```
 
 ### 清空所有链接

@@ -18,6 +18,8 @@ import time
 from urllib.parse import quote, unquote
 import base64
 import io
+import qrcode
+from PIL import Image
 
 # 数据库支持
 import pymysql
@@ -328,6 +330,38 @@ def normalize_url(url):
         app.logger.warning(f'URL normalization failed for {url}: {e}')
         return url
 
+def generate_qr_code_base64(url):
+    """生成二维码的base64编码"""
+    try:
+        # 创建二维码实例
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+
+        # 添加数据
+        qr.add_data(url)
+        qr.make(fit=True)
+
+        # 创建图片
+        img = qr.make_image(fill_color="black", back_color="white")
+
+        # 转换为base64
+        buffer = io.BytesIO()
+        img.save(buffer, format='PNG')
+        buffer.seek(0)
+
+        # 编码为base64
+        img_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+        return f"data:image/png;base64,{img_base64}"
+
+    except Exception as e:
+        app.logger.error(f'Error generating QR code: {str(e)}')
+        return None
+
 # 请求日志中间件
 @app.before_request
 def log_request():
@@ -421,14 +455,26 @@ def create_short_link():
         if result:
             app.logger.info(f'Created short link: {short_code} -> {original_url}')
 
-            return jsonify({
+            # 生成短链接URL
+            short_url = f"{BASE_URL}/{short_code}"
+
+            # 生成二维码
+            qr_code_base64 = generate_qr_code_base64(short_url)
+
+            response_data = {
                 "success": True,
                 "short_code": short_code,
-                "short_url": f"{BASE_URL}/{short_code}",
+                "short_url": short_url,
                 "original_url": original_url,
                 "title": title,
                 "created_at": datetime.now().isoformat()
-            }), 201
+            }
+
+            # 如果二维码生成成功，添加到响应中
+            if qr_code_base64:
+                response_data["qr_code"] = qr_code_base64
+
+            return jsonify(response_data), 201
         else:
             return jsonify({"error": "Failed to create short link"}), 500
             
@@ -639,35 +685,6 @@ def clear_all_links():
 
     except Exception as e:
         app.logger.error(f'Error clearing links: {str(e)}')
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
-
-@app.route('/api/qr/<short_code>')
-def generate_qr_code(short_code):
-    """生成短链接的二维码"""
-    try:
-        # 检查短链接是否存在
-        db = get_db_manager()
-        result = db.execute_query("SELECT 1 FROM links WHERE short_code = %s", (short_code,), fetch=True)
-
-        if not result:
-            return jsonify({"error": "Short link not found"}), 404
-
-        # 生成二维码URL
-        short_url = f"{BASE_URL}/{short_code}"
-
-        # 使用简单的二维码API服务
-        qr_api_url = f"https://api.qrserver.com/v1/create-qr-code/?size=200x200&data={quote(short_url)}"
-
-        return jsonify({
-            "success": True,
-            "short_code": short_code,
-            "short_url": short_url,
-            "qr_code_url": qr_api_url,
-            "qr_code_data": short_url
-        })
-
-    except Exception as e:
-        app.logger.error(f'Error generating QR code for {short_code}: {str(e)}')
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 @app.route('/health')
