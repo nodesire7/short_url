@@ -306,7 +306,7 @@ def create_short_link():
         raw_data = request.get_data()
         app.logger.info(f"Raw request data: {raw_data}")
 
-        data = request.get_json()
+        data = request.get_json(force=True)  # 强制解析JSON
         app.logger.info(f"Parsed JSON data: {data}")
 
         if not data:
@@ -360,8 +360,11 @@ def create_short_link():
             db_pool.return_connection(conn)
             
     except Exception as e:
+        import traceback
+        error_details = traceback.format_exc()
         app.logger.error(f'Error creating short link: {str(e)}')
-        return jsonify({"error": "Internal server error"}), 500
+        app.logger.error(f'Full traceback: {error_details}')
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 @app.route('/api/list', methods=['GET'])
 def list_links():
