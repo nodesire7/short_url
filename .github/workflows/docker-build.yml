@@ -55,31 +55,16 @@ jobs:
           type=semver,pattern={{major}}.{{minor}}
           type=raw,value=latest,enable={{is_default_branch}}
 
-    - name: Build and push Docker image (Standard)
+    - name: Build and push All-in-One Docker image
       uses: docker/build-push-action@v5
       with:
         context: .
-        file: ./Dockerfile
         platforms: linux/amd64,linux/arm64
         push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-
-    - name: Build and push All-in-One Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        file: ./Dockerfile.all-in-one
-        platforms: linux/amd64,linux/arm64
-        push: ${{ github.event_name != 'pull_request' && (github.event.inputs.push_to_registry == 'true' || github.event.inputs.push_to_registry == '') }}
-        tags: |
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:all-in-one
-          ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:all-in-one-latest
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha,key=all-in-one
-        cache-to: type=gha,mode=max,key=all-in-one
 
     - name: Update Docker Hub description
       if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

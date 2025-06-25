@@ -1,6 +1,6 @@
 services:
   shortlink:
-    image: nodesire77/shorturl_api:all-in-one
+    image: nodesire77/shorturl_api:latest
     container_name: shortlink-single
     restart: unless-stopped
     environment:
