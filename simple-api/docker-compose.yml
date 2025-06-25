@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  shortlink-api:
+    build: .
+    container_name: shortlink-simple-api
+    restart: unless-stopped
+    ports:
+      - "2282:2282"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2282/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
