@@ -14,7 +14,7 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - shortlink_mysql_data:/var/lib/mysql
     command: --default-authentication-plugin=mysql_native_password
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -29,7 +29,7 @@ services:
     ports:
       - "6379:6379"
     volumes:
-      - redis_data:/data
+      - shortlink_redis_data:/data
     command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -49,7 +49,7 @@ services:
         condition: service_healthy
     environment:
       # 基本配置
-      - API_TOKEN=${API_TOKEN:-your-secure-api-token-here}
+      - API_TOKEN=${API_TOKEN:-TaDeixjf9alwtJe5v4wv7F7cIpXM03hl}
       - BASE_URL=${BASE_URL:-http://localhost:2282}
       - SHORT_CODE_LENGTH=${SHORT_CODE_LENGTH:-6}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
@@ -69,7 +69,6 @@ services:
       - CACHE_TTL=3600
     ports:
       - "2282:2282"
-    # 移除volumes挂载，使用容器内部存储
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:2282/health"]
       interval: 30s
@@ -82,25 +81,9 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Nginx反向代理（可选）
-  nginx:
-    image: nginx:alpine
-    container_name: shortlink-nginx
-    restart: unless-stopped
-    depends_on:
-      - shortlink-api
-    ports:
-      - "80:80"
-    # 使用默认nginx配置
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
 volumes:
-  mysql_data:
-  redis_data:
+  shortlink_mysql_data:
+  shortlink_redis_data:
 
 networks:
   default:

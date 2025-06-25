@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: shortlink-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: shortlink_root_123456
+      MYSQL_DATABASE: shortlink
+      MYSQL_USER: shortlink
+      MYSQL_PASSWORD: shortlink123456
+    volumes:
+      - /opt/1panel/apps/shortlink/mysql:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - 1panel-network
+
+  shorturl_api:
+    image: nodesire77/shorturl_api:latest
+    container_name: shortlink-api
+    restart: unless-stopped
+    depends_on:
+      - mysql
+    ports:
+      - 2282:2282
+    environment:
+      - API_TOKEN=TaDeixjf9alwtJe5v4wv7F7cIpXM03hl
+      - BASE_URL=https://s.gbtgame.me
+      - DB_TYPE=mysql
+      - MYSQL_HOST=mysql
+      - MYSQL_PORT=3306
+      - MYSQL_USER=shortlink
+      - MYSQL_PASSWORD=shortlink123456
+      - MYSQL_DATABASE=shortlink
+    networks:
+      - 1panel-network
+
+networks:
+  1panel-network:
+    external: true
