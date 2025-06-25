@@ -4,7 +4,7 @@ services:
     container_name: shortlink-single
     restart: unless-stopped
     environment:
-      - API_TOKEN=${API_TOKEN:-TaDeixjf9alwtJe5v4wv7F7cIpXM03hl}
+      - API_TOKEN=${API_TOKEN}
       - BASE_URL=${BASE_URL:-http://localhost:2282}
       - SHORT_CODE_LENGTH=${SHORT_CODE_LENGTH:-6}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
